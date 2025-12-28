@@ -1,0 +1,15 @@
+{
+  "name": "flick-messenger",
+  "version": "1.0.0",
+  "description": "Flick Messenger - A modern, 8-bit styled messenger application",
+  "scripts": {
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev": "kill-port 3000 && concurrently \"npm run dev:backend\" \"npm run dev:frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "kill-port": "^2.0.1"
+  }
+}

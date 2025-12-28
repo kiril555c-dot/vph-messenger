@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  avatar    String?
+  bio       String?
+  relationshipStatus String?
+  isOnline  Boolean  @default(false)
+  lastSeen  DateTime @default(now())
+  notificationsEnabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages      Message[]
+  chatMembers   ChatMember[]
+  messageStatus MessageStatus[]
+  contacts      Contact[]     @relation("UserContacts")
+  contactOf     Contact[]     @relation("ContactOf")
+}
+
+model Contact {
+  id        String   @id @default(uuid())
+  userId    String
+  contactId String
+  createdAt DateTime @default(now())
+
+  user    User @relation("UserContacts", fields: [userId], references: [id])
+  contact User @relation("ContactOf", fields: [contactId], references: [id])
+
+  @@unique([userId, contactId])
+}
+
+model Chat {
+  id        String   @id @default(uuid())
+  name      String?
+  isGroup   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages    Message[]
+  chatMembers ChatMember[]
+}
+
+model ChatMember {
+  id        String   @id @default(uuid())
+  chatId    String
+  userId    String
+  role      String   @default("MEMBER") // ADMIN, MEMBER
+  joinedAt  DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([chatId, userId])
+}
+
+model Message {
+  id        String      @id @default(uuid())
+  content   String?
+  type      String      @default("TEXT") // TEXT, IMAGE, VIDEO, DOCUMENT, STICKER
+  fileUrl   String?
+  senderId  String
+  chatId    String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  sender   User            @relation(fields: [senderId], references: [id])
+  chat     Chat            @relation(fields: [chatId], references: [id])
+  statuses MessageStatus[]
+}
+
+model MessageStatus {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  status    String   @default("SENT") // SENT, DELIVERED, READ
+  updatedAt DateTime @updatedAt
+
+  message Message @relation(fields: [messageId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([messageId, userId])
+}
