@@ -11,14 +11,27 @@ import prisma from './utils/prisma';
 
 const app = express();
 const httpServer = createServer(app);
+
+// Настраиваем адреса, которым разрешено делать запросы к серверу
+const allowedOrigins = [
+  "https://kiril555c-dot.github.io", // Твой фронтенд на GitHub
+  "http://localhost:5173"            // Для локальной разработки
+];
+
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173", // Vite default port
-    methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
-app.use(cors());
+// Настройка CORS для обычных HTTP запросов
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
+
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/chats', chatRoutes);
@@ -36,8 +49,9 @@ const onlineUsers = new Map<string, string>(); // socketId -> userId
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  // 1. Установка пользователя (отдельное событие)
+  // 1. Установка пользователя
   socket.on('setup', async (userId: string) => {
+    if (!userId) return;
     socket.join(userId);
     onlineUsers.set(socket.id, userId);
     try {
@@ -57,21 +71,23 @@ io.on('connection', (socket) => {
     console.log(`User ${socket.id} joined chat ${chatId}`);
   });
 
-  // 3. НОВОЕ: Мгновенная пересылка сообщений
+  // 3. Мгновенная пересылка сообщений
   socket.on('new_message', (newMessageReceived) => {
-    const chat = newMessageReceived.chat;
+    const chat = newMessageReceived.chat || newMessageReceived.chatId;
 
-    if (!chat || !chat.users) {
-        return console.log("Chat or users not defined");
+    if (!newMessageReceived) return;
+
+    // Если в сообщении есть список пользователей (как в твоем старом бэкенде)
+    if (newMessageReceived.chat && newMessageReceived.chat.users) {
+      newMessageReceived.chat.users.forEach((user: any) => {
+        if (user.id === newMessageReceived.senderId) return;
+        // Эмитим 'new_message', так как фронтенд ждет именно это название
+        socket.in(user.id).emit("new_message", newMessageReceived);
+      });
+    } else {
+      // Упрощенный вариант: отправляем всем в комнате чата
+      socket.to(newMessageReceived.chatId).emit("new_message", newMessageReceived);
     }
-
-    chat.users.forEach((user: any) => {
-      // Не отправляем сообщение самому себе
-      if (user.id === newMessageReceived.senderId) return;
-
-      // Отправляем сообщение в "комнату" конкретного пользователя
-      socket.in(user.id).emit("message_received", newMessageReceived);
-    });
   });
 
   // 4. WebRTC Signaling (Звонки)
