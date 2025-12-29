@@ -4,22 +4,23 @@ import { AuthRequest } from '../middleware/authMiddleware';
 
 export const searchUsers = async (req: AuthRequest, res: Response) => {
   try {
-    // ИСПРАВЛЕНО: берем 'search' (как на фронте), либо 'query' для страховки
-    const query = (req.query.search || req.query.query) as string;
+    const query = (req.query.search || req.query.query || req.query.q || req.query.username) as string;
     const userId = req.user?.userId;
 
-    if (!query) {
-      return res.json([]); // Если пусто, просто возвращаем пустой массив без ошибки
+    console.log(`[SEARCH] Запрос: "${query}" от ID: ${userId}`);
+
+    if (!query || query.trim() === '') {
+      return res.json([]); 
     }
 
     const users = await prisma.user.findMany({
       where: {
         username: {
-          contains: query,
-          mode: 'insensitive', // ИСПРАВЛЕНО: теперь ищет без учета регистра (А=а)
+          contains: query.trim(),
+          mode: 'insensitive', 
         },
         NOT: {
-          id: userId // Не показываем самих себя
+          id: userId
         }
       },
       select: {
@@ -31,13 +32,13 @@ export const searchUsers = async (req: AuthRequest, res: Response) => {
         isOnline: true,
         lastSeen: true
       },
-      take: 10
+      take: 20
     });
 
-    res.json(users);
+    return res.json(users);
   } catch (error) {
-    console.error('Search error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('SEARCH ERROR:', error);
+    return res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -46,7 +47,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
     
     if (!userId) {
-      return res.status(401).json({ message: 'User ID not found in token' });
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
     const user = await prisma.user.findUnique({
@@ -64,10 +65,10 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
         createdAt: true
       }
     });
-    res.json(user);
+    return res.json(user);
   } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('GET PROFILE ERROR:', error);
+    return res.status(500).json({ message: 'Server error' });
   }
 };
 
@@ -77,18 +78,17 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
     const { username, avatar, bio, relationshipStatus, notificationsEnabled } = req.body;
 
     if (!userId) {
-      return res.status(401).json({ message: 'User ID required' });
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // ИСПРАВЛЕНО: добавляем проверку существования перед обновлением, чтобы не было краша
     const user = await prisma.user.update({
       where: { id: userId },
       data: {
-        username,
-        avatar,
+        username: username?.trim(),
+        avatar: avatar || undefined, // Если аватара нет, оставляем старый
         bio,
         relationshipStatus,
-        notificationsEnabled
+        notificationsEnabled: notificationsEnabled ?? true
       },
       select: {
         id: true,
@@ -102,13 +102,14 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
         notificationsEnabled: true
       }
     });
-    res.json(user);
+    
+    console.log(`[UPDATE] Профиль ${username} обновлен успешно`);
+    return res.json(user);
   } catch (error) {
-    console.error('Update profile error:', error);
-    // Если Prisma не нашла запись
+    console.error('UPDATE ERROR:', error);
     if ((error as any).code === 'P2025') {
-       return res.status(404).json({ message: 'User not found in database' });
+       return res.status(404).json({ message: 'User not found' });
     }
-    res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Server error' });
   }
 };
