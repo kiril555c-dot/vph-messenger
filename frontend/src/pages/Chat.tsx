@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Send, LogOut, Search, Sticker, Image as ImageIcon, Paperclip, Mic } from 'lucide-react';
+import { Send, LogOut, Search, Sticker, Paperclip } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import VoiceRecorder from '../components/VoiceRecorder';
 import StickerPicker from '../components/StickerPicker';
 import AudioPlayer from '../components/AudioPlayer';
 import ProfileSettings from '../components/ProfileSettings';
@@ -24,6 +23,7 @@ const Chat: React.FC = () => {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -43,6 +43,7 @@ const Chat: React.FC = () => {
     const newSocket = io(API_BASE_URL, {
       transports: ['websocket'],
       reconnection: true,
+      auth: { token }
     });
 
     newSocket.on('connect', () => {
@@ -55,7 +56,6 @@ const Chat: React.FC = () => {
     return () => { newSocket.disconnect(); };
   }, [navigate]);
 
-  // ИСПРАВЛЕННЫЙ СЛУШАТЕЛЬ (Реальное время без перезагрузки)
   useEffect(() => {
     if (!socket) return;
 
@@ -78,6 +78,36 @@ const Chat: React.FC = () => {
       socket.off('new_message', handleNewMessage);
     };
   }, [socket, activeChat]);
+
+  // УНИВЕРСАЛЬНЫЙ ПОИСК (Исправлено для работы с новым бэкендом)
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchQuery.length >= 2) {
+        performSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 500); // Ждем 0.5 сек перед отправкой, чтобы не спамить
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const performSearch = async (query: string) => {
+    setIsSearching(true);
+    try {
+      const token = localStorage.getItem('token');
+      // Отправляем и 'search' и 'query' для 100% совместимости
+      const res = await fetch(`${API_BASE_URL}/api/users/search?search=${encodeURIComponent(query)}&query=${encodeURIComponent(query)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error("Search error:", e);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const fetchChats = async (token: string) => {
     try {
@@ -118,19 +148,6 @@ const Chat: React.FC = () => {
     } catch (e) { console.error(e); }
   };
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    if (query.length < 2) return setSearchResults([]);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/api/users/search?search=${query}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setSearchResults(Array.isArray(data) ? data : []);
-    } catch (e) { console.error(e); }
-  };
-
   const startChat = async (partnerId: string) => {
     try {
       const token = localStorage.getItem('token');
@@ -160,7 +177,6 @@ const Chat: React.FC = () => {
   };
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-
   const getPartner = (chat: any) => chat.chatMembers?.find((m: any) => m.user.id !== user?.id)?.user;
   const formatAvatar = (url: string | null) => {
     if (!url) return null;
@@ -171,7 +187,6 @@ const Chat: React.FC = () => {
     <div className="flex h-screen bg-flick-dark overflow-hidden font-pixel text-white">
       {showProfileSettings && <ProfileSettings user={user} onClose={() => setShowProfileSettings(false)} onUpdate={(u) => setUser(u)} />}
 
-      {/* Sidebar */}
       <div className={`w-full md:w-80 glass-panel border-r border-white/10 flex flex-col ${activeChat ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/40">
           <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setShowProfileSettings(true)}>
@@ -189,13 +204,13 @@ const Chat: React.FC = () => {
 
         <div className="p-4 space-y-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" size={16} />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${isSearching ? 'text-flick-blue animate-pulse' : 'text-white/30'}`} size={16} />
             <input 
               type="text" 
               placeholder={t('search') || "Search users..."} 
               className="pixel-input w-full text-sm pl-10 py-3 bg-white/5" 
               value={searchQuery} 
-              onChange={(e) => handleSearch(e.target.value)} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
             />
           </div>
           {searchResults.length > 0 && (
@@ -232,7 +247,6 @@ const Chat: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Chat Area */}
       <div className={`flex-1 flex flex-col relative ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
         {activeChat ? (
           <>
@@ -305,7 +319,7 @@ const Chat: React.FC = () => {
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center bg-flick-dark/50">
             <div className="w-40 h-40 bg-flick-blue/5 rounded-full flex items-center justify-center mb-8 border border-white/5 shadow-2xl animate-pulse">
-               <div className="text-8xl drop-shadow-2xl">💬</div>
+                <div className="text-8xl drop-shadow-2xl">💬</div>
             </div>
             <div className="text-sm font-pixel text-white/30 uppercase tracking-[0.3em] bg-white/5 px-6 py-2 rounded-full border border-white/10">
               Select a chat to begin
