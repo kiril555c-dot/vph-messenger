@@ -6,10 +6,13 @@ const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
+  // Мы заменили localhost на твой реальный адрес бэкенда на Render
+  const API_URL = 'https://vph-messenger.onrender.com/api/auth/login';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:3000/api/auth/login', {
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -20,10 +23,11 @@ const Login: React.FC = () => {
         localStorage.setItem('user', JSON.stringify(data.user));
         navigate('/chat');
       } else {
-        alert(data.message);
+        alert(data.message || 'Ошибка входа');
       }
     } catch (error) {
       console.error('Login error:', error);
+      alert('Ошибка: Не удалось связаться с сервером. Убедитесь, что бэкенд на Render запущен.');
     }
   };
 
@@ -45,6 +49,7 @@ const Login: React.FC = () => {
               onChange={(e) => setEmail(e.target.value)}
               className="pixel-input w-full rounded-lg"
               placeholder="ВВЕДИТЕ EMAIL..."
+              required
             />
           </div>
 
@@ -56,6 +61,7 @@ const Login: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
               className="pixel-input w-full rounded-lg"
               placeholder="ВВЕДИТЕ ПАРОЛЬ..."
+              required
             />
           </div>
 
