@@ -27,7 +27,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onClose, onUpda
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:3000/api/upload', {
+      const response = await fetch('https://vph-messenger.onrender.com', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -43,7 +43,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onClose, onUpda
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/users/profile', {
+      const response = await fetch('https://vph-messenger.onrender.com', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -87,7 +87,7 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onClose, onUpda
                 <div className="w-full h-full rounded-full bg-flick-dark flex items-center justify-center overflow-hidden relative">
                   {avatar ? (
                     <img
-                      src={avatar.startsWith('http') ? avatar : `http://localhost:3000${avatar}`}
+                      src={avatar.startsWith('http') ? avatar : `https://vph-messenger.onrender.com${avatar}`}
                       alt={username}
                       className="w-full h-full object-cover"
                     />
