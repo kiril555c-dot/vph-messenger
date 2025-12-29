@@ -7,9 +7,8 @@ const Register: React.FC = () => {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  // ВАЖНО: GitHub (HTTPS) блокирует запросы к localhost (HTTP).
-  // Когда задеплоишь бэкенд, замени этот URL на адрес от Render/Railway
-  const API_URL = 'http://localhost:3000/api/auth/register';
+  // Мы заменили localhost на твой реальный адрес бэкенда на Render
+  const API_URL = 'https://vph-messenger.onrender.com/api/auth/register';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,14 +24,13 @@ const Register: React.FC = () => {
       if (response.ok) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        // Благодаря basename="/vph-messenger" в App.tsx, navigate сам добавит нужный путь
         navigate('/chat'); 
       } else {
         alert(data.message || 'Ошибка регистрации');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      alert('Не удалось связаться с сервером. Если бэкенд запущен на localhost, он не будет работать с GitHub Pages без специальной настройки (ngrok).');
+      alert('Ошибка: Не удалось связаться с сервером на Render. Проверь статус в панели Render.');
     }
   };
 
