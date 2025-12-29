@@ -18,13 +18,18 @@ jobs:
           node-version: 20
       - name: Install and Build
         run: |
-          cd frontend
+          # Этот скрипт сам найдет package.json и соберет проект
+          FILE_PATH=$(find . -name "package.json" -not -path "*/node_modules/*" | head -n 1)
+          DIR_PATH=$(dirname $FILE_PATH)
+          echo "Собираю в папке: $DIR_PATH"
+          cd $DIR_PATH
           npm install
           npm run build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./frontend/dist
+          # Ищем папку dist, куда Vite сохранил результат
+          path: ./**/dist/
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
