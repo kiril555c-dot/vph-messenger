@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/vph-messenger/', // Добавлено для корректной работы на GitHub Pages
   plugins: [
     react(),
     tailwindcss(),
