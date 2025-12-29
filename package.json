@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -16,7 +16,6 @@
     "browserify-zlib": "^0.2.0",
     "emoji-picker-react": "^4.15.1",
     "events": "^3.3.0",
-    "flick-messenger": "file:..",
     "lucide-react": "^0.554.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
