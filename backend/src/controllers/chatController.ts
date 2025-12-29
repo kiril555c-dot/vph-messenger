@@ -2,6 +2,7 @@ import { Response } from 'express';
 import prisma from '../utils/prisma';
 import { AuthRequest } from '../middleware/authMiddleware';
 
+// 1. Создание чата (личное или группа)
 export const createChat = async (req: AuthRequest, res: Response) => {
   try {
     const { partnerId, isGroup, name } = req.body;
@@ -13,23 +14,18 @@ export const createChat = async (req: AuthRequest, res: Response) => {
     }
 
     if (isGroup) {
-      // Create group chat logic here (simplified for now)
       const chat = await prisma.chat.create({
         data: {
           isGroup: true,
           name: name || 'New Group',
           chatMembers: {
-            create: [
-              { userId: userId, role: 'ADMIN' },
-              // Add other members if provided
-            ]
+            create: [{ userId: userId, role: 'ADMIN' }]
           }
         }
       });
       res.status(201).json(chat);
     } else {
-      // Private chat
-      // Check if chat already exists
+      // Ищем, нет ли уже такого чата между двумя юзерами
       const existingChat = await prisma.chat.findFirst({
         where: {
           isGroup: false,
@@ -82,6 +78,7 @@ export const createChat = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// 2. Получение списка всех чатов пользователя
 export const getChats = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
@@ -93,9 +90,7 @@ export const getChats = async (req: AuthRequest, res: Response) => {
 
     const chats = await prisma.chat.findMany({
       where: {
-        chatMembers: {
-          some: { userId }
-        }
+        chatMembers: { some: { userId } }
       },
       include: {
         chatMembers: {
@@ -113,17 +108,13 @@ export const getChats = async (req: AuthRequest, res: Response) => {
       orderBy: { updatedAt: 'desc' }
     });
 
-    // Calculate unread messages for each chat
     const chatsWithUnread = await Promise.all(chats.map(async (chat: any) => {
       const unreadCount = await prisma.message.count({
         where: {
           chatId: chat.id,
           senderId: { not: userId },
           statuses: {
-            none: {
-              userId: userId,
-              status: 'READ'
-            }
+            none: { userId: userId, status: 'READ' }
           }
         }
       });
@@ -131,6 +122,77 @@ export const getChats = async (req: AuthRequest, res: Response) => {
     }));
 
     res.json(chatsWithUnread);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// 3. Отправка сообщения
+export const sendMessage = async (req: AuthRequest, res: Response) => {
+  try {
+    const { chatId, content, type, fileUrl } = req.body;
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const message = await prisma.message.create({
+      data: {
+        chatId,
+        senderId: userId,
+        content: content || '',
+        type: type || 'TEXT',
+        fileUrl: fileUrl || null,
+      },
+      include: {
+        sender: {
+          select: { id: true, username: true, avatar: true }
+        }
+      }
+    });
+
+    // Обновляем время чата, чтобы он поднялся в списке вверх
+    await prisma.chat.update({
+      where: { id: chatId },
+      data: { updatedAt: new Date() }
+    });
+
+    // Прокидываем сообщение в сокеты (если io привязан к req)
+    const io = (req as any).io;
+    if (io) {
+      io.to(chatId).emit('new_message', message);
+    }
+
+    res.status(201).json(message);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// 4. Загрузка сообщений конкретного чата
+export const getMessages = async (req: AuthRequest, res: Response) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const messages = await prisma.message.findMany({
+      where: { chatId },
+      include: {
+        sender: {
+          select: { id: true, username: true, avatar: true }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    res.json(messages);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
