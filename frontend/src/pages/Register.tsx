@@ -7,24 +7,32 @@ const Register: React.FC = () => {
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
+  // ВАЖНО: GitHub (HTTPS) блокирует запросы к localhost (HTTP).
+  // Когда задеплоишь бэкенд, замени этот URL на адрес от Render/Railway
+  const API_URL = 'http://localhost:3000/api/auth/register';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:3000/api/auth/register', {
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password }),
       });
+      
       const data = await response.json();
+      
       if (response.ok) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        navigate('/chat');
+        // Благодаря basename="/vph-messenger" в App.tsx, navigate сам добавит нужный путь
+        navigate('/chat'); 
       } else {
-        alert(data.message);
+        alert(data.message || 'Ошибка регистрации');
       }
     } catch (error) {
       console.error('Registration error:', error);
+      alert('Не удалось связаться с сервером. Если бэкенд запущен на localhost, он не будет работать с GitHub Pages без специальной настройки (ngrok).');
     }
   };
 
@@ -44,8 +52,9 @@ const Register: React.FC = () => {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="pixel-input w-full rounded-lg"
+              className="pixel-input w-full rounded-lg bg-white/10 p-2 text-white outline-none"
               placeholder="ВЫБЕРИТЕ ИМЯ..."
+              required
             />
           </div>
 
@@ -55,8 +64,9 @@ const Register: React.FC = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="pixel-input w-full rounded-lg"
+              className="pixel-input w-full rounded-lg bg-white/10 p-2 text-white outline-none"
               placeholder="ВВЕДИТЕ EMAIL..."
+              required
             />
           </div>
 
@@ -66,12 +76,13 @@ const Register: React.FC = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="pixel-input w-full rounded-lg"
+              className="pixel-input w-full rounded-lg bg-white/10 p-2 text-white outline-none"
               placeholder="СОЗДАЙТЕ ПАРОЛЬ..."
+              required
             />
           </div>
 
-          <button type="submit" className="pixel-btn w-full rounded-lg text-sm py-3 mt-4 bg-flick-blue">
+          <button type="submit" className="pixel-btn w-full rounded-lg text-sm py-3 mt-4 bg-flick-blue text-white font-pixel hover:opacity-80 transition-opacity">
             СОЗДАТЬ АККАУНТ
           </button>
         </form>
