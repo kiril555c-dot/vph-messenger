@@ -1,61 +1,98 @@
 import dotenv from 'dotenv';
-import { httpServer, app } from './app'; // ← Убедись, что app экспортируется из app.ts
+import express from 'express';
+import cors from 'cors';
+import { createServer } from 'http';
 import { Server } from 'socket.io';
+import path from 'path';
+import fs from 'fs';
+
+// Импорт роутов
+import authRoutes from './routes/authRoutes';
+import chatRoutes from './routes/chatRoutes';
+import userRoutes from './routes/userRoutes';
+import prisma from './utils/prisma';
 
 dotenv.config();
 
+const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 
-// === ИНИЦИАЛИЗАЦИЯ SOCKET.IO ===
+// 1. Создаем папку uploads (для аватарок)
+const uploadDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// 2. Настройка CORS
+const allowedOrigins = [
+  "https://kiril555c-dot.github.io",
+  "http://localhost:5173",
+  "https://vph-messenger.onrender.com"
+];
+
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true
+}));
+
+app.use(express.json());
+
+// 3. ИНИЦИАЛИЗАЦИЯ SOCKET.IO
 const io = new Server(httpServer, {
   cors: {
-    origin: "*", // Или укажи точный URL фронта, например "https://vph-messenger.onrender.com"
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   }
 });
 
-// КРИТИЧЕСКИ ВАЖНАЯ СТРОКА — без неё io в контроллерах undefined
+// Передаем io в app, чтобы использовать в контроллерах
 app.set('io', io);
 
-// === ОБРАБОТКА СОКЕТОВ ===
-io.on('connection', (socket) => {
-  console.log(`Пользователь подключился: ${socket.id}`);
+// 4. МАРШРУТЫ (Исправляем 404 для профиля)
+app.use('/api/auth', authRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api/users', authRoutes); // Теперь запрос /api/users/update попадет в authRoutes
+app.use('/api/user-list', userRoutes); // Для поиска пользователей
 
-  // Клиент отправляет свой userId при подключении
-  socket.on('setup', (userId) => {
+// Раздача статики (чтобы аватарки открывались по ссылке)
+app.use('/uploads', express.static(uploadDir));
+
+app.get('/', (req, res) => {
+  res.send('Lumina Server is running...');
+});
+
+// 5. ОБРАБОТКА СОКЕТОВ
+io.on('connection', (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  socket.on('setup', async (userId) => {
     if (userId) {
-      socket.join(`user_${userId}`);
-      console.log(`Пользователь ${userId} в комнате user_${userId}`);
+      socket.join(userId);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { isOnline: true }
+      });
+      socket.broadcast.emit('user_online', userId);
     }
   });
 
-  // Присоединение к комнате чата
   socket.on('join_chat', (chatId) => {
-    socket.join(`chat_${chatId}`);
-    console.log(`Socket ${socket.id} присоединился к чату ${chatId}`);
+    socket.join(chatId);
   });
 
-  // Typing индикаторы
-  socket.on('typing', (chatId) => {
-    socket.to(`chat_${chatId}`).emit('typing', chatId);
-  });
-
-  socket.on('stop_typing', (chatId) => {
-    socket.to(`chat_${chatId}`).emit('stop_typing', chatId);
-  });
-
-  // Новое сообщение — отправляем всем в комнате чата
   socket.on('new_message', (message) => {
-    io.to(`chat_${message.chatId}`).emit('new_message', message);
+    if (!message || !message.chatId) return;
+    socket.to(message.chatId).emit('new_message', message);
   });
 
   socket.on('disconnect', () => {
-    console.log(`Пользователь отключился: ${socket.id}`);
+    console.log(`User disconnected: ${socket.id}`);
   });
 });
 
-// Запуск сервера
+// 6. ЗАПУСК
 httpServer.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`🚀 Server ready on port ${PORT}`);
 });

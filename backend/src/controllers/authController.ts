@@ -3,12 +3,18 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/prisma';
 
-// ... (register и login остаются такими же, добавляем новую функцию вниз)
+// ... твои функции register и login ...
 
 export const updateProfile = async (req: any, res: Response) => {
   try {
-    // ID пользователя берется из middleware protect (req.user.id)
-    const userId = req.user.id;
+    // ВАЖНО: В твоем login ты используешь userId. 
+    // Убедись, что middleware protect записывает данные именно в req.user
+    const userId = req.user?.userId || req.user?.id; 
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Не авторизован' });
+    }
+
     const { username, bio } = req.body;
 
     // Подготавливаем данные для обновления
@@ -18,11 +24,10 @@ export const updateProfile = async (req: any, res: Response) => {
 
     // Если multer сохранил файл, добавляем путь к аватарке
     if (req.file) {
-      // Сохраняем путь, который будет доступен через express.static
       updateData.avatar = `/uploads/${req.file.filename}`;
     }
 
-    // Обновляем пользователя в базе данных через Prisma
+    // Обновляем в Prisma
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -35,14 +40,15 @@ export const updateProfile = async (req: any, res: Response) => {
         username: updatedUser.username,
         email: updatedUser.email,
         avatar: updatedUser.avatar,
-        bio: updatedUser.bio
+        bio: updatedUser.bio || ''
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Update profile error:', error);
-    res.status(500).json({ message: 'Ошибка при обновлении профиля' });
+    // Если Prisma не нашла юзера или данные невалидны
+    res.status(500).json({ message: 'Ошибка при обновлении профиля в базе' });
   }
 };
 
-// Не забудь добавить экспорт существующих функций
+// Не забудь добавить updateProfile в экспорт!
 export { register, login };
