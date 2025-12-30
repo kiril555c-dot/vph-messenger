@@ -28,6 +28,7 @@ const Chat: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Инициализация
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -49,6 +50,7 @@ const Chat: React.FC = () => {
     return () => { newSocket.disconnect(); };
   }, [navigate]);
 
+  // Глобальный поиск
   useEffect(() => {
     const searchGlobal = async () => {
       if (searchQuery.length < 2) {
@@ -73,6 +75,7 @@ const Chat: React.FC = () => {
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, user]);
 
+  // Сокеты и новые сообщения
   useEffect(() => {
     if (!socket) return;
     
@@ -114,7 +117,7 @@ const Chat: React.FC = () => {
     setTimeout(scrollToBottom, 100);
   };
 
-  // ФУНКЦИЯ ОТКРЫТИЯ/СОЗДАНИЯ ЧАТА
+  // ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТКРЫТИЯ/СОЗДАНИЯ ЧАТА
   const startChat = async (targetUser: any) => {
     const token = localStorage.getItem('token');
     try {
@@ -129,13 +132,16 @@ const Chat: React.FC = () => {
 
       if (res.ok) {
         const chat = await res.json();
+        
+        // Обновляем список чатов, чтобы новый чат появился сразу
         setChats((prev) => {
           const exists = prev.find((c) => c.id === chat.id);
           return exists ? prev : [chat, ...prev];
         });
-        setActiveChat(chat);
-        setSelectedUser(null);
-        setSearchQuery('');
+        
+        setActiveChat(chat);   // Делаем чат активным (открываем окно)
+        setSelectedUser(null); // Закрываем профиль
+        setSearchQuery('');    // Очищаем поиск
       }
     } catch (e) {
       console.error("Не удалось начать чат:", e);
@@ -218,6 +224,7 @@ const Chat: React.FC = () => {
                     ) : (
                       <>
                         <button className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl font-semibold shadow-lg shadow-purple-900/20">В друзья</button>
+                        {/* ТУТ БЫЛА ОШИБКА: теперь кнопка вызывает startChat */}
                         <button onClick={() => startChat(selectedUser)} className="flex-1 py-3 bg-white/5 border border-white/10 rounded-2xl font-semibold transition-all hover:bg-white/10">Чат</button>
                       </>
                     )}
@@ -253,6 +260,7 @@ const Chat: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
+          {/* ГЛОБАЛЬНЫЙ ПОИСК */}
           {foundUsers.length > 0 && (
             <div className="mb-4">
               <p className="text-[10px] text-gray-500 uppercase font-bold px-4 mb-2 tracking-widest">Глобальный поиск</p>
@@ -276,11 +284,13 @@ const Chat: React.FC = () => {
             const partner = getPartner(chat);
             const isActive = activeChat?.id === chat.id;
             return (
-              <div key={chat.id} className={`flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer transition-all ${isActive ? 'bg-purple-600/10 border border-white/5 shadow-lg' : 'hover:bg-white/5'}`}>
+              <div key={chat.id} 
+                   onClick={() => setActiveChat(chat)}
+                   className={`flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer transition-all ${isActive ? 'bg-purple-600/10 border border-white/5 shadow-lg' : 'hover:bg-white/5'}`}>
                 <div onClick={(e) => { e.stopPropagation(); setSelectedUser(partner); }} className="w-12 h-12 rounded-2xl bg-purple-900/50 overflow-hidden border border-white/10 flex items-center justify-center">
                    {getAvatarUrl(partner?.avatar) ? <img src={getAvatarUrl(partner.avatar)!} className="w-full h-full object-cover" /> : <User size={20} className="text-purple-400" />}
                 </div>
-                <div className="flex-1 min-w-0" onClick={() => setActiveChat(chat)}>
+                <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-0.5">
                     <span className="font-bold text-sm truncate">{partner?.username || 'Чат'}</span>
                     <span className="text-[10px] text-gray-500">21:40</span>
@@ -293,6 +303,7 @@ const Chat: React.FC = () => {
         </div>
       </div>
 
+      {/* ОКНО ЧАТА */}
       <div className={`flex-1 flex flex-col bg-[#0f0c1d] relative ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
         {activeChat ? (
           <>
