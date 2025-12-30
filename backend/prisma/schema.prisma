@@ -4,45 +4,45 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  username  String   @unique
-  password  String
-  avatar    String?
-  bio       String?
-  relationshipStatus String?
-  isOnline  Boolean  @default(false)
-  lastSeen  DateTime @default(now())
-  notificationsEnabled Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String          @id @default(auto()) @map("_id") @db.ObjectId
+  email                String          @unique
+  username             String          @unique
+  password             String
+  avatar               String?
+  bio                  String?
+  relationshipStatus   String?
+  isOnline             Boolean         @default(false)
+  lastSeen             DateTime        @default(now())
+  notificationsEnabled Boolean         @default(true)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
-  messages      Message[]
-  chatMembers   ChatMember[]
-  messageStatus MessageStatus[]
-  contacts      Contact[]     @relation("UserContacts")
-  contactOf     Contact[]     @relation("ContactOf")
+  messages             Message[]
+  chatMembers          ChatMember[]
+  messageStatus        MessageStatus[]
+  contacts             Contact[]       @relation("UserContacts")
+  contactOf            Contact[]       @relation("ContactOf")
 }
 
 model Contact {
-  id        String   @id @default(uuid())
-  userId    String
-  contactId String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  contactId String   @db.ObjectId
   createdAt DateTime @default(now())
 
-  user    User @relation("UserContacts", fields: [userId], references: [id])
-  contact User @relation("ContactOf", fields: [contactId], references: [id])
+  user      User     @relation("UserContacts", fields: [userId], references: [id])
+  contact   User     @relation("ContactOf", fields: [contactId], references: [id])
 
   @@unique([userId, contactId])
 }
 
 model Chat {
-  id        String   @id @default(uuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String?
   isGroup   Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -53,11 +53,11 @@ model Chat {
 }
 
 model ChatMember {
-  id        String   @id @default(uuid())
-  chatId    String
-  userId    String
-  role      String   @default("MEMBER") // ADMIN, MEMBER
-  joinedAt  DateTime @default(now())
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  chatId   String   @db.ObjectId
+  userId   String   @db.ObjectId
+  role     String   @default("MEMBER") // ADMIN, MEMBER
+  joinedAt DateTime @default(now())
 
   chat Chat @relation(fields: [chatId], references: [id])
   user User @relation(fields: [userId], references: [id])
@@ -66,14 +66,14 @@ model ChatMember {
 }
 
 model Message {
-  id        String      @id @default(uuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   content   String?
-  type      String      @default("TEXT") // TEXT, IMAGE, VIDEO, DOCUMENT, STICKER
+  type      String   @default("TEXT") // TEXT, IMAGE, VIDEO, DOCUMENT, STICKER
   fileUrl   String?
-  senderId  String
-  chatId    String
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  senderId  String   @db.ObjectId
+  chatId    String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   sender   User            @relation(fields: [senderId], references: [id])
   chat     Chat            @relation(fields: [chatId], references: [id])
@@ -81,9 +81,9 @@ model Message {
 }
 
 model MessageStatus {
-  id        String   @id @default(uuid())
-  messageId String
-  userId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  messageId String   @db.ObjectId
+  userId    String   @db.ObjectId
   status    String   @default("SENT") // SENT, DELIVERED, READ
   updatedAt DateTime @updatedAt
 
