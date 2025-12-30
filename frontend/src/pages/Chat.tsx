@@ -24,9 +24,11 @@ const Chat: React.FC = () => {
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -50,11 +52,20 @@ const Chat: React.FC = () => {
       newSocket.emit('setup', parsedUser.id);
     });
 
+    // Слушаем когда кто-то печатает
+    newSocket.on('typing', (chatId) => {
+      if (activeChat?.id === chatId) setIsPartnerTyping(true);
+    });
+
+    newSocket.on('stop_typing', (chatId) => {
+      if (activeChat?.id === chatId) setIsPartnerTyping(false);
+    });
+
     setSocket(newSocket);
     fetchChats(token);
 
     return () => { newSocket.disconnect(); };
-  }, [navigate]);
+  }, [navigate, activeChat?.id]);
 
   useEffect(() => {
     if (!socket) return;
@@ -82,25 +93,25 @@ const Chat: React.FC = () => {
     };
   }, [socket, activeChat]);
 
-  // Эффект для поиска с задержкой (Debounce)
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (searchQuery.trim().length >= 2) {
-        performSearch(searchQuery);
-      } else {
-        setSearchResults([]);
-      }
-    }, 500);
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
 
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
+    if (!socket || !activeChat) return;
+
+    socket.emit('typing', activeChat.id);
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit('stop_typing', activeChat.id);
+    }, 2000);
+  };
 
   const performSearch = async (query: string) => {
     if (!query.trim()) return;
     setIsSearching(true);
     try {
       const token = localStorage.getItem('token');
-      // Исправленный URL: используем только параметр 'search'
       const res = await fetch(`${API_BASE_URL}/api/users/search?search=${encodeURIComponent(query)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -140,6 +151,7 @@ const Chat: React.FC = () => {
     e?.preventDefault();
     if (!newMessage.trim() || !activeChat) return;
 
+    socket?.emit('stop_typing', activeChat.id);
     const content = newMessage;
     setNewMessage('');
 
@@ -170,29 +182,10 @@ const Chat: React.FC = () => {
       });
       const chat = await res.json();
       setActiveChat(chat);
+      if (socket) socket.emit('join_chat', chat.id);
       setSearchQuery('');
       setSearchResults([]);
       fetchChats(token);
-    } catch (e) { console.error(e); }
-  };
-
-  const onStickerClick = async (url: string) => {
-    if (!activeChat) return;
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/chats/message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ chatId: activeChat.id, content: 'Sticker', type: 'STICKER', fileUrl: url }),
-      });
-
-      if (response.ok) {
-        const savedSticker = await response.json();
-        setMessages((prev) => [...prev, savedSticker]);
-        socket?.emit('new_message', savedSticker);
-        setShowStickerPicker(false);
-        setTimeout(scrollToBottom, 100);
-      }
     } catch (e) { console.error(e); }
   };
 
@@ -222,6 +215,7 @@ const Chat: React.FC = () => {
           </button>
         </div>
 
+        {/* Search */}
         <div className="p-4 space-y-3">
           <div className="relative">
             <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${isSearching ? 'text-flick-blue animate-pulse' : 'text-white/30'}`} size={16} />
@@ -247,6 +241,7 @@ const Chat: React.FC = () => {
           )}
         </div>
 
+        {/* Chats List */}
         <div className="flex-1 overflow-y-auto scrollbar-hide">
           {chats.map(chat => {
             const partner = getPartner(chat);
@@ -267,6 +262,7 @@ const Chat: React.FC = () => {
         </div>
       </div>
 
+      {/* Main Chat Area */}
       <div className={`flex-1 flex flex-col relative ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
         {activeChat ? (
           <>
@@ -279,8 +275,14 @@ const Chat: React.FC = () => {
                 <div>
                   <div className="text-[15px] font-pixel tracking-widest text-white">{getPartner(activeChat)?.username || activeChat.name}</div>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span className="text-[10px] text-flick-blue/80 uppercase font-bold">online</span>
+                    {isPartnerTyping ? (
+                      <span className="text-[10px] text-flick-orange animate-pulse font-bold uppercase">typing...</span>
+                    ) : (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                        <span className="text-[10px] text-flick-blue/80 uppercase font-bold">online</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -294,9 +296,6 @@ const Chat: React.FC = () => {
                       ? 'bg-gradient-to-br from-flick-blue to-[#1e40af] text-white rounded-tr-none' 
                       : 'bg-white/10 text-white border border-white/20 rounded-tl-none backdrop-blur-lg'
                   }`}>
-                    {msg.type === 'STICKER' && <img src={msg.fileUrl} className="w-32 h-32 object-contain" />}
-                    {msg.type === 'IMAGE' && <img src={msg.fileUrl} className="max-w-full rounded-xl mb-2 border border-white/20 shadow-lg" />}
-                    {msg.type === 'VOICE' && <AudioPlayer url={msg.fileUrl} isOwn={msg.senderId === user?.id} />}
                     {msg.type === 'TEXT' && <div className="text-[15px] leading-relaxed font-sans font-medium">{msg.content}</div>}
                     <div className="text-[9px] opacity-40 mt-2 text-right font-mono tracking-tighter">
                       {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -309,41 +308,22 @@ const Chat: React.FC = () => {
 
             <div className="p-5 bg-black/40 backdrop-blur-2xl border-t border-white/10">
               <form onSubmit={sendTextMessage} className="flex items-center gap-4 max-w-6xl mx-auto">
-                <button type="button" onClick={() => setShowStickerPicker(!showStickerPicker)} className="text-white/40 hover:text-flick-orange transition-all hover:scale-110">
-                  <Sticker size={24}/>
-                </button>
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="text-white/40 hover:text-flick-blue transition-all hover:scale-110">
-                  <Paperclip size={24}/>
-                </button>
-                <input type="file" ref={fileInputRef} className="hidden" />
-                
                 <input 
                   type="text" 
                   className="flex-1 pixel-input text-sm h-12 px-6 bg-white/5 border-white/10 focus:border-flick-blue/50 rounded-2xl transition-all" 
                   value={newMessage} 
-                  onChange={(e) => setNewMessage(e.target.value)} 
+                  onChange={handleTyping} 
                   placeholder="Type your message here..."
                 />
-
-                <button type="submit" className="h-12 w-12 flex items-center justify-center bg-gradient-to-tr from-flick-blue to-blue-400 hover:from-blue-500 hover:to-blue-300 rounded-2xl shadow-lg shadow-flick-blue/30 transition-all active:scale-90">
-                  <Send size={22} className="text-white drop-shadow-md"/>
+                <button type="submit" className="h-12 w-12 flex items-center justify-center bg-gradient-to-tr from-flick-blue to-blue-400 rounded-2xl">
+                  <Send size={22} className="text-white"/>
                 </button>
               </form>
-              {showStickerPicker && (
-                <div className="absolute bottom-28 left-6 z-[60] shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300">
-                  <StickerPicker onStickerClick={(url) => { onStickerClick(url); setShowStickerPicker(false); }} />
-                </div>
-              )}
             </div>
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center bg-flick-dark/50">
-            <div className="w-40 h-40 bg-flick-blue/5 rounded-full flex items-center justify-center mb-8 border border-white/5 shadow-2xl animate-pulse">
-                <div className="text-8xl drop-shadow-2xl">💬</div>
-            </div>
-            <div className="text-sm font-pixel text-white/30 uppercase tracking-[0.3em] bg-white/5 px-6 py-2 rounded-full border border-white/10">
-              Select a chat to begin
-            </div>
+            <div className="text-sm font-pixel text-white/30 uppercase tracking-[0.3em]">Select a chat to begin</div>
           </div>
         )}
       </div>
