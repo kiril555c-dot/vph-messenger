@@ -28,7 +28,6 @@ const Chat: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Инициализация
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -50,7 +49,6 @@ const Chat: React.FC = () => {
     return () => { newSocket.disconnect(); };
   }, [navigate]);
 
-  // Глобальный поиск
   useEffect(() => {
     const searchGlobal = async () => {
       if (searchQuery.length < 2) {
@@ -75,7 +73,6 @@ const Chat: React.FC = () => {
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, user]);
 
-  // Сокеты и новые сообщения
   useEffect(() => {
     if (!socket) return;
     
@@ -117,7 +114,6 @@ const Chat: React.FC = () => {
     setTimeout(scrollToBottom, 100);
   };
 
-  // ИСПРАВЛЕННАЯ ФУНКЦИЯ ОТКРЫТИЯ/СОЗДАНИЯ ЧАТА
   const startChat = async (targetUser: any) => {
     const token = localStorage.getItem('token');
     try {
@@ -132,16 +128,13 @@ const Chat: React.FC = () => {
 
       if (res.ok) {
         const chat = await res.json();
-        
-        // Обновляем список чатов, чтобы новый чат появился сразу
         setChats((prev) => {
           const exists = prev.find((c) => c.id === chat.id);
           return exists ? prev : [chat, ...prev];
         });
-        
-        setActiveChat(chat);   // Делаем чат активным (открываем окно)
-        setSelectedUser(null); // Закрываем профиль
-        setSearchQuery('');    // Очищаем поиск
+        setActiveChat(chat);
+        setSelectedUser(null);
+        setSearchQuery('');
       }
     } catch (e) {
       console.error("Не удалось начать чат:", e);
@@ -190,7 +183,7 @@ const Chat: React.FC = () => {
   return (
     <div className="flex h-screen bg-[#0f0c1d] text-gray-100 font-sans overflow-hidden relative">
       
-      {/* МОДАЛКА ПРОФИЛЯ */}
+      {/* МОДАЛКА ПРОФИЛЯ (ОСТАВЛЯЕМ ТОЛЬКО ДЛЯ СВОЕГО ПРОФИЛЯ) */}
       {selectedUser && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => { setSelectedUser(null); setIsEditing(false); }}></div>
@@ -219,14 +212,8 @@ const Chat: React.FC = () => {
                   <h3 className="text-2xl font-bold">{selectedUser.id === user?.id ? user.username : selectedUser.username}</h3>
                   <p className="text-purple-400 text-xs mb-6 uppercase tracking-widest">@{selectedUser.username.toLowerCase()}</p>
                   <div className="flex gap-2 mb-6">
-                    {selectedUser.id === user?.id ? (
+                    {selectedUser.id === user?.id && (
                       <button onClick={() => setIsEditing(true)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all"><Edit3 size={16} /> Редактировать</button>
-                    ) : (
-                      <>
-                        <button className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl font-semibold shadow-lg shadow-purple-900/20">В друзья</button>
-                        {/* ТУТ БЫЛА ОШИБКА: теперь кнопка вызывает startChat */}
-                        <button onClick={() => startChat(selectedUser)} className="flex-1 py-3 bg-white/5 border border-white/10 rounded-2xl font-semibold transition-all hover:bg-white/10">Чат</button>
-                      </>
                     )}
                   </div>
                   <div className="text-left space-y-4 border-t border-white/5 pt-4">
@@ -260,18 +247,18 @@ const Chat: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
-          {/* ГЛОБАЛЬНЫЙ ПОИСК */}
+          {/* ГЛОБАЛЬНЫЙ ПОИСК — ТЕПЕРЬ СРАЗУ ОТКРЫВАЕТ ЧАТ */}
           {foundUsers.length > 0 && (
             <div className="mb-4">
               <p className="text-[10px] text-gray-500 uppercase font-bold px-4 mb-2 tracking-widest">Глобальный поиск</p>
               {foundUsers.map(u => (
-                <div key={u.id} onClick={() => setSelectedUser(u)} className="flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer hover:bg-purple-600/10 transition-all border border-transparent hover:border-white/5">
+                <div key={u.id} onClick={() => startChat(u)} className="flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer hover:bg-purple-600/10 transition-all border border-transparent hover:border-white/5">
                   <div className="w-12 h-12 rounded-2xl bg-purple-900/30 overflow-hidden border border-white/5 flex items-center justify-center text-purple-400 font-bold">
                     {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} className="w-full h-full object-cover" /> : u.username[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="font-bold text-sm block">{u.username}</span>
-                    <span className="text-[10px] text-purple-400">Нажми, чтобы открыть профиль</span>
+                    <span className="text-[10px] text-purple-400">Нажми, чтобы начать общение</span>
                   </div>
                 </div>
               ))}
