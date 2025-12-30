@@ -79,7 +79,6 @@ const Chat: React.FC = () => {
     };
   }, [socket, activeChat]);
 
-  // УНИВЕРСАЛЬНЫЙ ПОИСК (Исправлено для работы с новым бэкендом)
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchQuery.length >= 2) {
@@ -87,7 +86,7 @@ const Chat: React.FC = () => {
       } else {
         setSearchResults([]);
       }
-    }, 500); // Ждем 0.5 сек перед отправкой, чтобы не спамить
+    }, 500);
 
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
@@ -96,7 +95,6 @@ const Chat: React.FC = () => {
     setIsSearching(true);
     try {
       const token = localStorage.getItem('token');
-      // Отправляем и 'search' и 'query' для 100% совместимости
       const res = await fetch(`${API_BASE_URL}/api/users/search?search=${encodeURIComponent(query)}&query=${encodeURIComponent(query)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -140,11 +138,18 @@ const Chat: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await fetch(`${API_BASE_URL}/api/chats/message`, {
+      const response = await fetch(`${API_BASE_URL}/api/chats/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ chatId: activeChat.id, content, type: 'TEXT' }),
       });
+
+      if (response.ok) {
+        const savedMessage = await response.json();
+        // ВСТАВЛЕНО: Мгновенное обновление списка сообщений
+        setMessages((prev) => [...prev, savedMessage]);
+        setTimeout(scrollToBottom, 100);
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -168,11 +173,19 @@ const Chat: React.FC = () => {
     if (!activeChat) return;
     try {
       const token = localStorage.getItem('token');
-      await fetch(`${API_BASE_URL}/api/chats/message`, {
+      const response = await fetch(`${API_BASE_URL}/api/chats/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ chatId: activeChat.id, content: 'Sticker', type: 'STICKER', fileUrl: url }),
       });
+
+      if (response.ok) {
+        const savedSticker = await response.json();
+        // ВСТАВЛЕНО: Мгновенное обновление при отправке стикера
+        setMessages((prev) => [...prev, savedSticker]);
+        setShowStickerPicker(false);
+        setTimeout(scrollToBottom, 100);
+      }
     } catch (e) { console.error(e); }
   };
 
