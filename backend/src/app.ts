@@ -28,6 +28,10 @@ const io = new Server(httpServer, {
   }
 });
 
+// === КРИТИЧЕСКАЯ СТРОКА: Делаем io доступным в контроллерах ===
+app.set('io', io);
+// ===============================================================
+
 app.use(cors({
   origin: allowedOrigins,
   credentials: true
