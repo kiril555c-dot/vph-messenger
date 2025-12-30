@@ -60,16 +60,13 @@ const Chat: React.FC = () => {
     if (!socket) return;
 
     const handleNewMessage = (message: any) => {
-      // Если мы в том же чате, куда пришло сообщение — добавляем его на экран
       if (activeChat && message.chatId === activeChat.id) {
         setMessages((prev) => {
-          // Проверка на дубликаты (чтобы не было 2 одинаковых сообщений у отправителя)
           if (prev.find(m => m.id === message.id)) return prev;
           return [...prev, message];
         });
         setTimeout(scrollToBottom, 100);
       }
-      // Обновляем список чатов слева (чтобы видеть последнее сообщение)
       fetchChats(localStorage.getItem('token') || '');
     };
 
@@ -85,9 +82,10 @@ const Chat: React.FC = () => {
     };
   }, [socket, activeChat]);
 
+  // Эффект для поиска с задержкой (Debounce)
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      if (searchQuery.length >= 2) {
+      if (searchQuery.trim().length >= 2) {
         performSearch(searchQuery);
       } else {
         setSearchResults([]);
@@ -98,16 +96,19 @@ const Chat: React.FC = () => {
   }, [searchQuery]);
 
   const performSearch = async (query: string) => {
+    if (!query.trim()) return;
     setIsSearching(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/api/users/search?search=${encodeURIComponent(query)}&query=${encodeURIComponent(query)}`, {
+      // Исправленный URL: используем только параметр 'search'
+      const res = await fetch(`${API_BASE_URL}/api/users/search?search=${encodeURIComponent(query)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setSearchResults(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Search error:", e);
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
@@ -152,13 +153,8 @@ const Chat: React.FC = () => {
 
       if (response.ok) {
         const savedMessage = await response.json();
-        
-        // 1. Сразу добавляем сообщение в свой список
         setMessages((prev) => [...prev, savedMessage]);
-        
-        // 2. ОТПРАВЛЯЕМ В СОКЕТ (Чтобы увидел другой человек)
         socket?.emit('new_message', savedMessage);
-        
         setTimeout(scrollToBottom, 100);
       }
     } catch (e) { console.error(e); }
@@ -192,13 +188,8 @@ const Chat: React.FC = () => {
 
       if (response.ok) {
         const savedSticker = await response.json();
-        
-        // 1. Сразу добавляем стикер у себя
         setMessages((prev) => [...prev, savedSticker]);
-        
-        // 2. ОТПРАВЛЯЕМ В СОКЕТ
         socket?.emit('new_message', savedSticker);
-        
         setShowStickerPicker(false);
         setTimeout(scrollToBottom, 100);
       }
