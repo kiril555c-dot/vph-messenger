@@ -26,7 +26,6 @@ const Chat: React.FC = () => {
   const [editedBio, setEditedBio] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 1. Инициализация и Socket.io
   useEffect(() => {
@@ -45,7 +44,6 @@ const Chat: React.FC = () => {
     });
 
     newSocket.on('connect', () => {
-      console.log("Socket подключен:", newSocket.id);
       newSocket.emit('setup', parsedUser.id);
     });
     
@@ -54,10 +52,9 @@ const Chat: React.FC = () => {
     return () => { newSocket.disconnect(); };
   }, [navigate]);
 
-  // 2. ИСПРАВЛЕННЫЙ Глобальный поиск людей
+  // 2. Глобальный поиск людей
   useEffect(() => {
     const searchGlobal = async () => {
-      // Ищем, если введено хотя бы 1 символ
       if (searchQuery.trim().length < 1) {
         setFoundUsers([]);
         return;
@@ -69,13 +66,10 @@ const Chat: React.FC = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          // Исключаем себя из поиска
           setFoundUsers(data.filter((u: any) => u.id !== user?.id));
-        } else {
-          console.error("Сервер вернул ошибку поиска:", res.status);
         }
       } catch (e) {
-        console.error("Ошибка сети при поиске:", e);
+        console.error("Ошибка при поиске:", e);
       }
     };
 
@@ -130,10 +124,9 @@ const Chat: React.FC = () => {
     } catch (e) { console.error("Ошибка загрузки сообщений:", e); }
   };
 
+  // МГНОВЕННОЕ ОТКРЫТИЕ ЧАТА
   const startChat = async (targetUser: any) => {
-    console.log(">>> НАЖАТИЕ: Создание чата с:", targetUser.username);
     const token = localStorage.getItem('token');
-    
     try {
       const res = await fetch(`${API_BASE_URL}/api/chats`, {
         method: 'POST',
@@ -146,20 +139,26 @@ const Chat: React.FC = () => {
 
       if (res.ok) {
         const chat = await res.json();
+        
+        // Обновляем список чатов локально, чтобы не ждать перезагрузки
         setChats((prev) => {
           const exists = prev.find((c) => c.id === chat.id);
-          return exists ? prev : [chat, ...prev];
+          if (exists) return prev;
+          return [chat, ...prev];
         });
+
+        // Сразу открываем этот чат
         setActiveChat(chat);
         setSearchQuery('');
         setFoundUsers([]);
         setSelectedUser(null);
-      } else {
-        const errText = await res.text();
-        alert(`Ошибка сервера: ${res.status}`);
+        
+        // Сразу запрашиваем сообщения и подключаемся к комнате
+        fetchMessages(chat.id);
+        socket?.emit('join_chat', chat.id);
       }
     } catch (e) {
-      alert("Ошибка сети. Проверьте соединение.");
+      console.error("Ошибка при создании чата:", e);
     }
   };
 
