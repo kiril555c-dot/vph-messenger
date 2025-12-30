@@ -18,7 +18,7 @@ export const updateProfile = async (req: any, res: Response) => {
     // Принудительно приводим к строке (важно для MongoDB)
     const userId = String(rawId);
 
-    const { username, bio } = req.body;
+    const { username, bio, relationshipStatus, notificationsEnabled } = req.body;
 
     // 2. Сначала ищем пользователя (findUnique), чтобы не падать с ошибкой P2025
     const userExists = await prisma.user.findUnique({
@@ -32,12 +32,14 @@ export const updateProfile = async (req: any, res: Response) => {
 
     // 3. Собираем данные для обновления
     const updateData: any = {};
-    if (username) updateData.username = username;
+    if (username) updateData.username = username.trim();
     if (bio !== undefined) updateData.bio = bio;
+    if (relationshipStatus !== undefined) updateData.relationshipStatus = relationshipStatus;
+    if (notificationsEnabled !== undefined) updateData.notificationsEnabled = notificationsEnabled;
 
-    // 4. Если multer загрузил файл (кот в наушниках), сохраняем путь
+    // 4. Если multer загрузил файл, сохраняем путь
     if (req.file) {
-      // Это путь, который будет лежать в MongoDB Compass
+      // Сохраняем относительный путь для консистентности
       updateData.avatar = `/uploads/${req.file.filename}`;
     }
 
@@ -47,7 +49,30 @@ export const updateProfile = async (req: any, res: Response) => {
       data: updateData,
     });
 
-    // 6. Успешный ответ
+    // 6. Отправляем событие через WebSocket для обновления профиля у всех пользователей
+    // Получаем io из app через req.app
+    const app = (req as any).app;
+    if (app) {
+      const io = app.get('io');
+      if (io) {
+        io.emit('profile_updated', { 
+          userId: updatedUser.id, 
+          user: {
+            id: updatedUser.id,
+            username: updatedUser.username,
+            email: updatedUser.email,
+            avatar: updatedUser.avatar,
+            bio: updatedUser.bio,
+            relationshipStatus: updatedUser.relationshipStatus,
+            isOnline: updatedUser.isOnline,
+            lastSeen: updatedUser.lastSeen,
+            notificationsEnabled: updatedUser.notificationsEnabled
+          }
+        });
+      }
+    }
+
+    // 7. Успешный ответ
     res.json({
       message: 'Профиль успешно обновлен',
       user: {
@@ -55,7 +80,11 @@ export const updateProfile = async (req: any, res: Response) => {
         username: updatedUser.username,
         email: updatedUser.email,
         avatar: updatedUser.avatar, 
-        bio: updatedUser.bio || ''
+        bio: updatedUser.bio || '',
+        relationshipStatus: updatedUser.relationshipStatus || null,
+        isOnline: updatedUser.isOnline,
+        lastSeen: updatedUser.lastSeen,
+        notificationsEnabled: updatedUser.notificationsEnabled ?? true
       }
     });
 

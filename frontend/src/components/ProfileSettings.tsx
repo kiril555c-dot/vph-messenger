@@ -55,24 +55,31 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onClose, onUpda
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+      
+      // Используем FormData для поддержки загрузки файлов
+      const formData = new FormData();
+      formData.append('username', username);
+      formData.append('bio', bio);
+      if (relationshipStatus) formData.append('relationshipStatus', relationshipStatus);
+      formData.append('notificationsEnabled', String(notificationsEnabled));
+      
+      // Если аватар был загружен, добавляем его
+      if (fileInputRef.current?.files?.[0]) {
+        formData.append('avatar', fileInputRef.current.files[0]);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/users/update`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
-          username, 
-          avatar, 
-          bio, 
-          relationshipStatus, 
-          notificationsEnabled 
-        }),
+        body: formData,
       });
 
       if (!response.ok) throw new Error('Update failed');
 
-      const updatedUser = await response.json();
+      const result = await response.json();
+      const updatedUser = result.user || result;
       localStorage.setItem('user', JSON.stringify(updatedUser));
       onUpdate(updatedUser);
       

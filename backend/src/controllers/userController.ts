@@ -81,15 +81,16 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    const updateData: any = {};
+    if (username) updateData.username = username.trim();
+    if (bio !== undefined) updateData.bio = bio;
+    if (relationshipStatus !== undefined) updateData.relationshipStatus = relationshipStatus;
+    if (notificationsEnabled !== undefined) updateData.notificationsEnabled = notificationsEnabled;
+    if (avatar) updateData.avatar = avatar;
+
     const user = await prisma.user.update({
       where: { id: userId },
-      data: {
-        username: username?.trim(),
-        avatar: avatar || undefined, // Если аватара нет, оставляем старый
-        bio,
-        relationshipStatus,
-        notificationsEnabled: notificationsEnabled ?? true
-      },
+      data: updateData,
       select: {
         id: true,
         username: true,
@@ -103,8 +104,17 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
       }
     });
     
-    console.log(`[UPDATE] Профиль ${username} обновлен успешно`);
-    return res.json(user);
+    // Отправляем событие через WebSocket для обновления профиля у всех пользователей
+    const app = (req as any).app;
+    if (app) {
+      const io = app.get('io');
+      if (io) {
+        io.emit('profile_updated', { userId: user.id, user });
+      }
+    }
+    
+    console.log(`[UPDATE] Профиль ${user.username} обновлен успешно`);
+    return res.json({ user });
   } catch (error) {
     console.error('UPDATE ERROR:', error);
     if ((error as any).code === 'P2025') {
