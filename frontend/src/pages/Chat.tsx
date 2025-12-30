@@ -51,7 +51,7 @@ const Chat: React.FC = () => {
 
   useEffect(() => {
     const searchGlobal = async () => {
-      if (searchQuery.length < 2) {
+      if (searchQuery.trim().length < 2) {
         setFoundUsers([]);
         return;
       }
@@ -110,11 +110,14 @@ const Chat: React.FC = () => {
   const fetchMessages = async (chatId: string) => {
     const token = localStorage.getItem('token');
     const res = await fetch(`${API_BASE_URL}/api/chats/${chatId}/messages`, { headers: { Authorization: `Bearer ${token}` } });
-    setMessages(await res.json());
-    setTimeout(scrollToBottom, 100);
+    if (res.ok) {
+        setMessages(await res.json());
+        setTimeout(scrollToBottom, 100);
+    }
   };
 
   const startChat = async (targetUser: any) => {
+    console.log("Попытка начать чат с:", targetUser.username);
     const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE_URL}/api/chats`, {
@@ -133,8 +136,9 @@ const Chat: React.FC = () => {
           return exists ? prev : [chat, ...prev];
         });
         setActiveChat(chat);
-        setSelectedUser(null);
         setSearchQuery('');
+        setFoundUsers([]);
+        setSelectedUser(null);
       }
     } catch (e) {
       console.error("Не удалось начать чат:", e);
@@ -183,11 +187,11 @@ const Chat: React.FC = () => {
   return (
     <div className="flex h-screen bg-[#0f0c1d] text-gray-100 font-sans overflow-hidden relative">
       
-      {/* МОДАЛКА ПРОФИЛЯ (ОСТАВЛЯЕМ ТОЛЬКО ДЛЯ СВОЕГО ПРОФИЛЯ) */}
+      {/* МОДАЛКА ПРОФИЛЯ */}
       {selectedUser && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => { setSelectedUser(null); setIsEditing(false); }}></div>
-          <div className="relative w-full max-w-[380px] bg-[#161426] rounded-[32px] overflow-hidden shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200">
+          <div className="relative w-full max-w-[380px] bg-[#161426] rounded-[32px] overflow-hidden shadow-2xl border border-white/10">
             <div className="h-28 bg-gradient-to-tr from-purple-600 to-blue-900 relative">
                <button onClick={() => { setSelectedUser(null); setIsEditing(false); }} className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 rounded-full transition-colors"><X size={18} /></button>
             </div>
@@ -209,16 +213,16 @@ const Chat: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  <h3 className="text-2xl font-bold">{selectedUser.id === user?.id ? user.username : selectedUser.username}</h3>
+                  <h3 className="text-2xl font-bold">{selectedUser.username}</h3>
                   <p className="text-purple-400 text-xs mb-6 uppercase tracking-widest">@{selectedUser.username.toLowerCase()}</p>
-                  <div className="flex gap-2 mb-6">
-                    {selectedUser.id === user?.id && (
-                      <button onClick={() => setIsEditing(true)} className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all"><Edit3 size={16} /> Редактировать</button>
-                    )}
-                  </div>
+                  
+                  {selectedUser.id !== user?.id && (
+                     <button onClick={() => startChat(selectedUser)} className="w-full mb-4 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl font-bold transition-all">Написать сообщение</button>
+                  )}
+
                   <div className="text-left space-y-4 border-t border-white/5 pt-4">
                     <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">О себе</p>
-                    <p className="text-sm text-gray-300 leading-relaxed">{selectedUser.id === user?.id ? editedBio : (selectedUser.bio || "Пользователь Lumina 🌌")}</p>
+                    <p className="text-sm text-gray-300 leading-relaxed">{selectedUser.bio || "Пользователь Lumina 🌌"}</p>
                   </div>
                 </>
               )}
@@ -247,18 +251,20 @@ const Chat: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
-          {/* ГЛОБАЛЬНЫЙ ПОИСК — ТЕПЕРЬ СРАЗУ ОТКРЫВАЕТ ЧАТ */}
+          {/* ГЛОБАЛЬНЫЙ ПОИСК */}
           {foundUsers.length > 0 && (
             <div className="mb-4">
               <p className="text-[10px] text-gray-500 uppercase font-bold px-4 mb-2 tracking-widest">Глобальный поиск</p>
               {foundUsers.map(u => (
-                <div key={u.id} onClick={() => startChat(u)} className="flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer hover:bg-purple-600/10 transition-all border border-transparent hover:border-white/5">
+                <div key={u.id} 
+                     onClick={(e) => { e.preventDefault(); startChat(u); }} 
+                     className="flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer hover:bg-purple-600/20 transition-all border border-transparent hover:border-white/5 bg-purple-600/5 mb-1">
                   <div className="w-12 h-12 rounded-2xl bg-purple-900/30 overflow-hidden border border-white/5 flex items-center justify-center text-purple-400 font-bold">
                     {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} className="w-full h-full object-cover" /> : u.username[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="font-bold text-sm block">{u.username}</span>
-                    <span className="text-[10px] text-purple-400">Нажми, чтобы начать общение</span>
+                    <span className="text-[10px] text-purple-400 font-medium">Нажми, чтобы начать чат</span>
                   </div>
                 </div>
               ))}
@@ -280,7 +286,6 @@ const Chat: React.FC = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-0.5">
                     <span className="font-bold text-sm truncate">{partner?.username || 'Чат'}</span>
-                    <span className="text-[10px] text-gray-500">21:40</span>
                   </div>
                   <p className="text-xs text-gray-400 truncate opacity-70">{chat.latestMessage?.content || "Нет сообщений"}</p>
                 </div>
@@ -298,7 +303,7 @@ const Chat: React.FC = () => {
               <div className="flex items-center gap-4">
                 <button onClick={() => setActiveChat(null)} className="md:hidden text-purple-400 text-2xl mr-2">←</button>
                 <div onClick={() => setSelectedUser(getPartner(activeChat))} className="w-10 h-10 rounded-xl bg-purple-500/20 border border-white/10 overflow-hidden cursor-pointer flex items-center justify-center hover:scale-105 transition-transform">
-                   {getAvatarUrl(getPartner(activeChat)?.avatar) ? <img src={getAvatarUrl(getPartner(activeChat).avatar)!} className="w-full h-full object-cover" /> : <User size={18}/>}
+                    {getAvatarUrl(getPartner(activeChat)?.avatar) ? <img src={getAvatarUrl(getPartner(activeChat).avatar)!} className="w-full h-full object-cover" /> : <User size={18}/>}
                 </div>
                 <div>
                   <h2 onClick={() => setSelectedUser(getPartner(activeChat))} className="font-bold text-base cursor-pointer hover:text-purple-400 transition-colors">{getPartner(activeChat)?.username}</h2>
