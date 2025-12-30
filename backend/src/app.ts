@@ -12,10 +12,13 @@ import prisma from './utils/prisma';
 const app = express();
 const httpServer = createServer(app);
 
-// Настраиваем адреса, которым разрешено делать запросы к серверу
+// Настраиваем адреса, чтобы друзья могли подключиться с любого устройства
 const allowedOrigins = [
-  "https://kiril555c-dot.github.io", // Твой фронтенд на GitHub
-  "http://localhost:5173"            // Для локальной разработки
+  "https://kiril555c-dot.github.io", // Твой старый адрес на GitHub
+  "http://localhost:5173",           // Для твоих тестов на компьютере
+  "https://vph-messenger.onrender.com", // Твой адрес бэкенда
+  /\.vercel\.app$/,                  // Разрешает все сайты на Vercel (если друзья там)
+  /\.netlify\.app$/                  // Разрешает все сайты на Netlify
 ];
 
 const io = new Server(httpServer, {
@@ -26,7 +29,7 @@ const io = new Server(httpServer, {
   }
 });
 
-// Настройка CORS для обычных HTTP запросов
+// Настройка CORS для обычных HTTP запросов (регистрация, вход)
 app.use(cors({
   origin: allowedOrigins,
   credentials: true
@@ -40,7 +43,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/users', userRoutes);
 
 app.get('/', (req, res) => {
-  res.send('Flick Messenger API is running');
+  res.send('Flick Messenger API is running and connected to MongoDB Atlas');
 });
 
 // Socket.io connection handler
@@ -49,12 +52,13 @@ const onlineUsers = new Map<string, string>(); // socketId -> userId
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  // 1. Установка пользователя
+  // 1. Установка пользователя (Online статус)
   socket.on('setup', async (userId: string) => {
     if (!userId) return;
     socket.join(userId);
     onlineUsers.set(socket.id, userId);
     try {
+      // Это сработает, так как мы сделали npx prisma db push
       await prisma.user.update({
         where: { id: userId },
         data: { isOnline: true }
@@ -73,24 +77,21 @@ io.on('connection', (socket) => {
 
   // 3. Мгновенная пересылка сообщений
   socket.on('new_message', (newMessageReceived) => {
+    if (!newMessageReceived) return;
+    
     const chat = newMessageReceived.chat || newMessageReceived.chatId;
 
-    if (!newMessageReceived) return;
-
-    // Если в сообщении есть список пользователей (как в твоем старом бэкенде)
     if (newMessageReceived.chat && newMessageReceived.chat.users) {
       newMessageReceived.chat.users.forEach((user: any) => {
         if (user.id === newMessageReceived.senderId) return;
-        // Эмитим 'new_message', так как фронтенд ждет именно это название
         socket.in(user.id).emit("new_message", newMessageReceived);
       });
     } else {
-      // Упрощенный вариант: отправляем всем в комнате чата
       socket.to(newMessageReceived.chatId).emit("new_message", newMessageReceived);
     }
   });
 
-  // 4. WebRTC Signaling (Звонки)
+  // 4. WebRTC Signaling (Звонки для друзей)
   socket.on('call_user', ({ userToCall, signalData, from, name }) => {
     const userSocketId = [...onlineUsers.entries()].find(([key, val]) => val === userToCall)?.[0];
     if (userSocketId) {
@@ -109,7 +110,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. Отключение
+  // 5. Отключение (Offline статус)
   socket.on('disconnect', async () => {
     const userId = onlineUsers.get(socket.id);
     if (userId) {
