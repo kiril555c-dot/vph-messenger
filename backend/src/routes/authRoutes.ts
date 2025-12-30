@@ -12,25 +12,26 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/'); 
   },
   filename: (req, file, cb) => {
-    // Добавляем случайное число, чтобы избежать конфликтов имен
+    // Делаем уникальное имя, чтобы не было дублей
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, `avatar-${uniqueSuffix}${path.extname(file.originalname)}`);
   }
 });
 
-// Фильтр файлов (пропускаем только изображения)
+// СТРОГИЙ ФИЛЬТР: только изображения
 const fileFilter = (req: any, file: any, cb: any) => {
-  if (file.mimetype.startsWith('image/')) {
+  if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png' || file.mimetype === 'image/jpg') {
     cb(null, true);
   } else {
-    cb(new Error('Разрешены только изображения!'), false);
+    // Если это .webm или что-то другое — блокируем
+    cb(new Error('Можно загружать только JPG или PNG!'), false);
   }
 };
 
 const upload = multer({ 
   storage: storage,
   fileFilter: fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 } // Лимит 5МБ
+  limits: { fileSize: 5 * 1024 * 1024 } // 5МБ максимум
 });
 
 // Роуты
@@ -38,7 +39,7 @@ router.post('/register', register);
 router.post('/login', login);
 
 // Обновление профиля
-// Используем PUT /api/users/update (как просит фронтенд)
+// ВАЖНО: именно этот роут ждет фронтенд по адресу /api/users/update
 router.put('/update', protect, upload.single('avatar'), updateProfile);
 
 export default router;
