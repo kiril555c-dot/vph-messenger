@@ -26,87 +26,83 @@ const Login: React.FC = () => {
       }
     } catch (error) {
       console.error('Login error:', error);
-      alert('Ошибка: Не удалось связаться с сервером. Убедитесь, что бэкенд на Render запущен.');
+      alert('Ошибка: Не удалось связаться с сервером.');
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 relative overflow-hidden">
-      {/* Фоновые светящиеся элементы */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500 rounded-full filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500 rounded-full filter blur-3xl opacity-20 animate-pulse delay-1000"></div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#0f0c1d] relative overflow-hidden">
+      {/* Декоративные фоновые элементы (свечение) */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[120px]"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px]"></div>
 
-      <div className="relative z-10 w-full max-w-md">
-        {/* Карточка входа с глубоким glassmorphism */}
-        <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-3xl shadow-2xl p-8 md:p-10 overflow-hidden relative">
-          {/* Градиентная полоса сверху */}
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500"></div>
-
-          {/* Логотип и название */}
+      <div className="relative w-full max-w-md">
+        {/* Основная карточка */}
+        <div className="bg-[#161426]/80 backdrop-blur-xl p-8 rounded-[32px] border border-white/10 shadow-2xl">
+          
+          {/* Логотип и Заголовок */}
           <div className="text-center mb-10">
-            <h1 className="text-5xl md:text-6xl font-bold tracking-wider mb-3">
-              <span className="bg-gradient-to-r from-pink-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent animate-gradient">
-                Lumina
-              </span>
-            </h1>
-            <p className="text-white/60 text-sm font-light tracking-widest">ВОЙДИТЕ В СВОЙ МИР</p>
+            <div className="inline-block px-4 py-1.5 mb-4 rounded-full bg-purple-500/10 border border-purple-500/20">
+              <span className="text-purple-400 text-[10px] font-black uppercase tracking-[0.2em]">Next-Gen Messenger</span>
+            </div>
+            <h2 className="text-5xl font-black italic tracking-tighter text-white">
+              Lumina
+            </h2>
+            <p className="text-gray-400 text-sm mt-2">Добро пожаловать обратно</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-7">
-            <div>
-              <label className="block text-white/80 text-xs font-medium tracking-wider mb-2">
-                EMAIL
-              </label>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Email Field */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-gray-500 uppercase ml-1 tracking-wider">Email Адрес</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 backdrop-blur-sm"
-                placeholder="your@email.com"
+                className="w-full bg-[#1f1d33] border border-white/5 rounded-2xl py-4 px-5 text-sm text-white outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all placeholder:text-gray-600"
+                placeholder="name@example.com"
                 required
               />
             </div>
 
-            <div>
-              <label className="block text-white/80 text-xs font-medium tracking-wider mb-2">
-                ПАРОЛЬ
-              </label>
+            {/* Password Field */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-gray-500 uppercase ml-1 tracking-wider">Пароль</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-5 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 backdrop-blur-sm"
+                className="w-full bg-[#1f1d33] border border-white/5 rounded-2xl py-4 px-5 text-sm text-white outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all placeholder:text-gray-600"
                 placeholder="••••••••"
                 required
               />
             </div>
 
-            <button
-              type="submit"
-              className="w-full py-4 mt-6 rounded-xl font-semibold text-white text-lg tracking-wider bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 shadow-lg hover:shadow-purple-500/30 transform hover:-translate-y-1 transition-all duration-300"
+            {/* Кнопка входа */}
+            <button 
+              type="submit" 
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-4 rounded-2xl shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all active:scale-[0.98] mt-4"
             >
-              ВОЙТИ В LUMINA
+              Войти в систему
             </button>
           </form>
 
-          <div className="mt-8 text-center">
-            <p className="text-white/50 text-sm">
-              Ещё нет аккаунта?{' '}
-              <Link
-                to="/register"
-                className="font-medium text-cyan-400 hover:text-cyan-300 transition-colors underline underline-offset-4"
-              >
-                Создать аккаунт
-              </Link>
-            </p>
+          {/* Ссылка на регистрацию */}
+          <div className="mt-8 text-center text-sm">
+            <span className="text-gray-500">Нет аккаунта? </span>
+            <Link 
+              to="/register" 
+              className="text-white font-bold hover:text-purple-400 transition-colors underline underline-offset-4 decoration-purple-500/30"
+            >
+              Создать профиль
+            </Link>
           </div>
-
-          {/* Декоративные уголки */}
-          <div className="absolute top-4 left-4 w-20 h-20 border-l-4 border-t-4 border-purple-400/50 rounded-tl-3xl"></div>
-          <div className="absolute bottom-4 right-4 w-20 h-20 border-r-4 border-b-4 border-cyan-400/50 rounded-br-3xl"></div>
         </div>
+
+        {/* Подпись внизу */}
+        <p className="text-center mt-8 text-[10px] text-gray-600 uppercase tracking-widest font-medium">
+          &copy; 2024 Lumina Ecosystem. All rights reserved.
+        </p>
       </div>
     </div>
   );
