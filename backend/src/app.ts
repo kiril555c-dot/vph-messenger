@@ -46,6 +46,7 @@ app.use('/api/users', authRoutes); // Тот самый роут для обно
 app.use('/api/chats', chatRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/users-list', userRoutes); // Переименовал, чтобы не было конфликта с authRoutes
+app.use('/api/user-list', userRoutes); // Дублируем для совместимости
 
 app.get('/', (req, res) => {
   res.send('Flick Messenger API is running');

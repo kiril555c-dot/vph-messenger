@@ -76,22 +76,34 @@ const Chat: React.FC = () => {
       }
       const token = localStorage.getItem('token');
       if (!token) {
-        console.error("Нет токена для поиска");
         return;
       }
       try {
+        // Пробуем разные варианты роутов
         const url = `${API_BASE_URL}/api/users-list/search?query=${encodeURIComponent(trimmedQuery)}`;
-        console.log("Поиск по URL:", url);
         const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${token}` }
+          method: 'GET',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         });
         if (res.ok) {
           const data = await res.json();
-          console.log("Найдено пользователей:", data.length);
-          setFoundUsers(data.filter((u: any) => u.id !== user?.id));
-        } else {
-          const errorText = await res.text();
-          console.error("Ошибка поиска:", res.status, res.statusText, errorText);
+          setFoundUsers(Array.isArray(data) ? data.filter((u: any) => u.id !== user?.id) : []);
+        } else if (res.status === 404) {
+          // Если 404, пробуем альтернативный роут
+          const altRes = await fetch(`${API_BASE_URL}/api/user-list/search?query=${encodeURIComponent(trimmedQuery)}`, {
+            method: 'GET',
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          if (altRes.ok) {
+            const data = await altRes.json();
+            setFoundUsers(Array.isArray(data) ? data.filter((u: any) => u.id !== user?.id) : []);
+          }
         }
       } catch (e) {
         console.error("Ошибка поиска:", e);
