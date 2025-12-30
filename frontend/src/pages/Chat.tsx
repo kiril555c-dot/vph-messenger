@@ -54,28 +54,32 @@ const Chat: React.FC = () => {
     return () => { newSocket.disconnect(); };
   }, [navigate]);
 
-  // 2. Глобальный поиск людей
+  // 2. ИСПРАВЛЕННЫЙ Глобальный поиск людей
   useEffect(() => {
     const searchGlobal = async () => {
-      if (searchQuery.trim().length < 2) {
+      // Ищем, если введено хотя бы 1 символ
+      if (searchQuery.trim().length < 1) {
         setFoundUsers([]);
         return;
       }
       const token = localStorage.getItem('token');
       try {
-        const res = await fetch(`${API_BASE_URL}/api/users/search?query=${searchQuery}`, {
+        const res = await fetch(`${API_BASE_URL}/api/users/search?query=${encodeURIComponent(searchQuery)}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
           const data = await res.json();
+          // Исключаем себя из поиска
           setFoundUsers(data.filter((u: any) => u.id !== user?.id));
+        } else {
+          console.error("Сервер вернул ошибку поиска:", res.status);
         }
       } catch (e) {
-        console.error("Ошибка поиска:", e);
+        console.error("Ошибка сети при поиске:", e);
       }
     };
 
-    const delayDebounce = setTimeout(searchGlobal, 400);
+    const delayDebounce = setTimeout(searchGlobal, 300);
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, user]);
 
@@ -126,9 +130,8 @@ const Chat: React.FC = () => {
     } catch (e) { console.error("Ошибка загрузки сообщений:", e); }
   };
 
-  // ИСПРАВЛЕННАЯ ФУНКЦИЯ СТАРТА ЧАТА
   const startChat = async (targetUser: any) => {
-    console.log(">>> НАЖАТИЕ: Попытка начать чат с:", targetUser.username, "ID:", targetUser.id);
+    console.log(">>> НАЖАТИЕ: Создание чата с:", targetUser.username);
     const token = localStorage.getItem('token');
     
     try {
@@ -141,8 +144,6 @@ const Chat: React.FC = () => {
         body: JSON.stringify({ userId: targetUser.id }),
       });
 
-      console.log(">>> ОТВЕТ СЕРВЕРА СТАТУС:", res.status);
-
       if (res.ok) {
         const chat = await res.json();
         setChats((prev) => {
@@ -153,15 +154,12 @@ const Chat: React.FC = () => {
         setSearchQuery('');
         setFoundUsers([]);
         setSelectedUser(null);
-        console.log(">>> ЧАТ УСПЕШНО ОТКРЫТ:", chat.id);
       } else {
         const errText = await res.text();
-        console.error(">>> ОШИБКА СЕРВЕРА:", res.status, errText);
-        alert(`Сервер вернул ошибку ${res.status}. Возможно, роут не найден или БД недоступна.`);
+        alert(`Ошибка сервера: ${res.status}`);
       }
     } catch (e) {
-      console.error(">>> СЕТЕВАЯ ОШИБКА:", e);
-      alert("Ошибка сети. Проверь консоль (F12)!");
+      alert("Ошибка сети. Проверьте соединение.");
     }
   };
 
@@ -205,7 +203,7 @@ const Chat: React.FC = () => {
   });
 
   return (
-    <div className="flex h-screen bg-[#0f0c1d] text-gray-100 font-sans overflow-hidden relative select-none">
+    <div className="flex h-screen bg-[#0f0c1d] text-gray-100 font-sans overflow-hidden relative">
       
       {/* МОДАЛКА ПРОФИЛЯ */}
       {selectedUser && (
@@ -268,7 +266,6 @@ const Chat: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
-          {/* ГЛОБАЛЬНЫЙ ПОИСК */}
           {foundUsers.length > 0 && (
             <div className="mb-4 relative z-10">
               <p className="text-[10px] text-gray-500 uppercase font-bold px-4 mb-2 tracking-widest">Глобальный поиск</p>
