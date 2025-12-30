@@ -23,14 +23,12 @@ const allowedOrigins = [
 const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT"],
     credentials: true
   }
 });
 
-// === КРИТИЧЕСКАЯ СТРОКА: Делаем io доступным в контроллерах ===
 app.set('io', io);
-// ===============================================================
 
 app.use(cors({
   origin: allowedOrigins,
@@ -38,94 +36,73 @@ app.use(cors({
 }));
 
 app.use(express.json());
-app.use('/api/auth', authRoutes);
+
+// === ПОПРАВКА ПУТИ ДЛЯ СТАТИКИ ===
+// Если app.ts лежит в src/, а uploads в корне, нужно выходить на 2 уровня вверх в dist
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
+// Роуты
+app.use('/api/users', authRoutes); // Тот самый роут для обновления профиля
 app.use('/api/chats', chatRoutes);
 app.use('/api/upload', uploadRoutes);
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-app.use('/api/users', userRoutes);
+app.use('/api/users-list', userRoutes); // Переименовал, чтобы не было конфликта с authRoutes
 
 app.get('/', (req, res) => {
-  res.send('Flick Messenger API is running and connected to MongoDB Atlas');
+  res.send('Flick Messenger API is running');
 });
 
-const onlineUsers = new Map<string, string>(); // socketId -> userId
+const onlineUsers = new Map<string, string>();
 
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
+  console.log('User connected:', socket.id);
 
-  // 1. Установка пользователя и вход в личную комнату
   socket.on('setup', async (userId: string) => {
-    if (!userId) return;
+    if (!userId || userId === "undefined" || userId === "null") return;
+    
     socket.join(userId);
     onlineUsers.set(socket.id, userId);
+
     try {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { isOnline: true }
-      });
-      socket.broadcast.emit('user_online', userId);
+      // ПРОВЕРКА: существует ли юзер, прежде чем менять статус (лечит P2025)
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { isOnline: true }
+        });
+        socket.broadcast.emit('user_online', userId);
+      }
     } catch (error) {
-      console.error('Error updating user status:', error);
+      console.error('Socket setup error:', error);
     }
   });
 
-  // 2. Вход в комнату конкретного чата
   socket.on('join_chat', (chatId) => {
     socket.join(chatId);
-    console.log(`User ${socket.id} joined chat room: ${chatId}`);
   });
 
-  // 3. Исправленная пересылка сообщений
   socket.on('new_message', (newMessageReceived) => {
-    if (!newMessageReceived || !newMessageReceived.chatId) return;
-
-    // Рассылаем сообщение всем в комнате chatId, кроме отправителя
+    if (!newMessageReceived?.chatId) return;
     socket.to(newMessageReceived.chatId).emit('new_message', newMessageReceived);
-    
-    // На всякий случай дублируем в личные комнаты участников, если они не в чате
-    if (newMessageReceived.chat?.users) {
-      newMessageReceived.chat.users.forEach((user: any) => {
-        if (user.id === newMessageReceived.senderId) return;
-        socket.to(user.id).emit("new_message", newMessageReceived);
-      });
-    }
   });
 
-  // 4. Звонки (оставляем без изменений)
-  socket.on('call_user', ({ userToCall, signalData, from, name }) => {
-    const userSocketId = [...onlineUsers.entries()].find(([key, val]) => val === userToCall)?.[0];
-    if (userSocketId) {
-        io.to(userSocketId).emit('call_user', { signal: signalData, from, name, callerSocketId: socket.id });
-    }
-  });
-
-  socket.on('answer_call', (data) => {
-    io.to(data.to).emit('call_accepted', data.signal);
-  });
-
-  socket.on('end_call', ({ to }) => {
-    const userSocketId = [...onlineUsers.entries()].find(([key, val]) => val === to)?.[0];
-    if (userSocketId) {
-        io.to(userSocketId).emit('call_ended');
-    }
-  });
-
-  // 5. Отключение
   socket.on('disconnect', async () => {
     const userId = onlineUsers.get(socket.id);
     if (userId) {
       try {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { isOnline: false, lastSeen: new Date() }
-        });
-        socket.broadcast.emit('user_offline', userId);
-        onlineUsers.delete(socket.id);
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (user) {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { isOnline: false, lastSeen: new Date() }
+          });
+          socket.broadcast.emit('user_offline', userId);
+        }
       } catch (error) {
-        console.error('Error updating user status:', error);
+        console.error('Disconnect error:', error);
       }
+      onlineUsers.delete(socket.id);
     }
-    console.log('User disconnected:', socket.id);
   });
 });
 
