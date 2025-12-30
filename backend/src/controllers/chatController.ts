@@ -81,19 +81,19 @@ export const createChat = async (req: AuthRequest, res: Response) => {
         }
       });
 
-      // === ИСПРАВЛЕНО: Надёжная отправка события new_chat ВСЕМ подключённым клиентам ===
+      // === ДОБАВЛЕНО: Realtime-уведомление о новом чате ===
       const io = req.app.get('io');
       if (io) {
         const chatForClient = {
           ...chat,
-          unreadCount: 0,
+          unreadCount: 0,                    // Новый чат — непрочитанных нет
           latestMessage: chat.messages.length > 0 ? chat.messages[0] : null
         };
 
-        // Отправляем событие ВСЕМ — так точно дойдёт до второго пользователя
+        // Отправляем событие ВСЕМ подключённым клиентам — самый надёжный способ
         io.emit('new_chat', chatForClient);
       }
-      // =============================================================================
+      // ================================================
 
       return res.status(201).json(chat);
     }
