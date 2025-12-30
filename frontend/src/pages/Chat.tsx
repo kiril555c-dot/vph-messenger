@@ -60,10 +60,16 @@ const Chat: React.FC = () => {
     if (!socket) return;
 
     const handleNewMessage = (message: any) => {
+      // Если мы в том же чате, куда пришло сообщение — добавляем его на экран
       if (activeChat && message.chatId === activeChat.id) {
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => {
+          // Проверка на дубликаты (чтобы не было 2 одинаковых сообщений у отправителя)
+          if (prev.find(m => m.id === message.id)) return prev;
+          return [...prev, message];
+        });
         setTimeout(scrollToBottom, 100);
       }
+      // Обновляем список чатов слева (чтобы видеть последнее сообщение)
       fetchChats(localStorage.getItem('token') || '');
     };
 
@@ -146,8 +152,13 @@ const Chat: React.FC = () => {
 
       if (response.ok) {
         const savedMessage = await response.json();
-        // ВСТАВЛЕНО: Мгновенное обновление списка сообщений
+        
+        // 1. Сразу добавляем сообщение в свой список
         setMessages((prev) => [...prev, savedMessage]);
+        
+        // 2. ОТПРАВЛЯЕМ В СОКЕТ (Чтобы увидел другой человек)
+        socket?.emit('new_message', savedMessage);
+        
         setTimeout(scrollToBottom, 100);
       }
     } catch (e) { console.error(e); }
@@ -181,8 +192,13 @@ const Chat: React.FC = () => {
 
       if (response.ok) {
         const savedSticker = await response.json();
-        // ВСТАВЛЕНО: Мгновенное обновление при отправке стикера
+        
+        // 1. Сразу добавляем стикер у себя
         setMessages((prev) => [...prev, savedSticker]);
+        
+        // 2. ОТПРАВЛЯЕМ В СОКЕТ
+        socket?.emit('new_message', savedSticker);
+        
         setShowStickerPicker(false);
         setTimeout(scrollToBottom, 100);
       }
