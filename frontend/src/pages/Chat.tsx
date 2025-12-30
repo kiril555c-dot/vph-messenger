@@ -17,13 +17,12 @@ const Chat: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [user, setUser] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
   
   const [foundUsers, setFoundUsers] = useState<any[]>([]); 
-  const [selectedUser, setSelectedUser] = useState<any>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 1. Инициализация пользователя и сокета
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -38,15 +37,17 @@ const Chat: React.FC = () => {
     });
 
     newSocket.on('connect', () => {
+      console.log("Сокет подключен:", newSocket.id);
       newSocket.emit('setup', parsedUser.id);
     });
     
     setSocket(newSocket);
     fetchChats(token);
+
     return () => { newSocket.disconnect(); };
   }, [navigate]);
 
-  // Глобальный поиск (Исправлено)
+  // 2. Глобальный поиск людей
   useEffect(() => {
     const searchGlobal = async () => {
       if (searchQuery.trim().length < 1) {
@@ -60,7 +61,6 @@ const Chat: React.FC = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          // Показываем только тех, кого нет в списке наших чатов и не нас самих
           setFoundUsers(data.filter((u: any) => u.id !== user?.id));
         }
       } catch (e) {
@@ -72,24 +72,38 @@ const Chat: React.FC = () => {
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, user]);
 
+  // 3. МГНОВЕННЫЕ СООБЩЕНИЯ (Исправлено)
   useEffect(() => {
     if (!socket) return;
-    
-    socket.off('new_message');
+
+    // Слушаем входящие сообщения
+    socket.off('new_message'); 
     socket.on('new_message', (message: any) => {
-      if (activeChat?.id === message.chatId) {
-        setMessages((prev) => prev.find(m => m.id === message.id) ? prev : [...prev, message]);
+      console.log("Получено сообщение через сокет:", message);
+      
+      // Если это сообщение для текущего открытого чата — добавляем в список
+      if (activeChat && activeChat.id === message.chatId) {
+        setMessages((prev) => {
+          if (prev.some(m => m.id === message.id)) return prev;
+          return [...prev, message];
+        });
         setTimeout(scrollToBottom, 100);
       }
+      
+      // Обновляем список чатов слева (чтобы видеть последнее сообщение)
       fetchChats(localStorage.getItem('token') || '');
     });
 
+    // При выборе чата — входим в его комнату
     if (activeChat) {
       socket.emit('join_chat', activeChat.id);
       fetchMessages(activeChat.id);
     }
-    return () => { socket.off('new_message'); };
-  }, [socket, activeChat]);
+
+    return () => {
+      socket.off('new_message');
+    };
+  }, [socket, activeChat]); // Переподключаемся при смене чата
 
   const fetchChats = async (token: string) => {
     try {
@@ -127,15 +141,15 @@ const Chat: React.FC = () => {
         setActiveChat(chat);
         setSearchQuery('');
         setFoundUsers([]);
-        socket?.emit('join_chat', chat.id);
       }
     } catch (e) { console.error(e); }
   };
 
   const sendTextMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!newMessage.trim() || !activeChat) return;
-    const content = newMessage;
+    if (!newMessage.trim() || !activeChat || !socket) return;
+    
+    const content = newMessage.trim();
     setNewMessage('');
 
     try {
@@ -145,10 +159,13 @@ const Chat: React.FC = () => {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ chatId: activeChat.id, content, type: 'TEXT' }),
       });
+      
       if (response.ok) {
         const saved = await response.json();
+        // Добавляем себе в список сразу
         setMessages(p => [...p, saved]);
-        socket?.emit('new_message', saved);
+        // Отправляем через сокет другим
+        socket.emit('new_message', saved);
         setTimeout(scrollToBottom, 100);
       }
     } catch (e) { console.error(e); }
@@ -158,13 +175,12 @@ const Chat: React.FC = () => {
   const getPartner = (chat: any) => chat.chatMembers?.find((m: any) => m.user.id !== user?.id)?.user;
   const getAvatarUrl = (avatar: string | null) => avatar ? (avatar.startsWith('http') ? avatar : `${API_BASE_URL}${avatar}`) : null;
 
-  // Фильтр для отображения текущих чатов
   const filteredChats = chats.filter(chat => {
     const partnerName = getPartner(chat)?.username?.toLowerCase() || '';
     return partnerName.includes(searchQuery.toLowerCase());
   });
 
-  if (!user) return <div className="h-screen bg-[#0f0c1d] flex items-center justify-center text-white">🌌 Lumina...</div>;
+  if (!user) return <div className="h-screen bg-[#0f0c1d] flex items-center justify-center text-white font-bold">Lumina Messenger...</div>;
 
   return (
     <div className="flex h-screen bg-[#0f0c1d] text-gray-100 font-sans overflow-hidden">
@@ -173,15 +189,15 @@ const Chat: React.FC = () => {
       <div className={`w-full md:w-[380px] bg-[#161426] border-r border-white/5 flex flex-col ${activeChat ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-6 flex items-center justify-between">
           <h1 className="text-2xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent italic">Lumina</h1>
-          <button onClick={() => { localStorage.clear(); navigate('/login'); }} className="text-gray-500 hover:text-white"><LogOut size={20}/></button>
+          <button onClick={() => { localStorage.clear(); navigate('/login'); }} className="text-gray-500 hover:text-white transition-colors"><LogOut size={20}/></button>
         </div>
 
-        <div className="px-6 pb-4 relative">
+        <div className="px-6 pb-4">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
             <input 
               type="text" 
-              placeholder="Поиск людей и чатов..." 
+              placeholder="Поиск людей..." 
               className="w-full bg-[#1f1d33] rounded-2xl py-3 pl-11 pr-4 text-sm outline-none focus:ring-1 focus:ring-purple-500/50 transition-all" 
               value={searchQuery} 
               onChange={e => setSearchQuery(e.target.value)} 
@@ -190,29 +206,28 @@ const Chat: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 custom-scrollbar">
-          
-          {/* ГЛОБАЛЬНЫЙ ПОИСК */}
+          {/* РЕЗУЛЬТАТЫ ПОИСКА */}
           {searchQuery && foundUsers.length > 0 && (
             <div className="mb-4">
               <p className="text-[10px] text-purple-400 uppercase font-black px-4 mb-2 tracking-widest">Глобальный поиск</p>
               {foundUsers.map(u => (
-                <div key={u.id} onClick={() => startChat(u)} className="flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer bg-purple-600/10 border border-purple-500/20 mb-2 transition-all">
+                <div key={u.id} onClick={() => startChat(u)} className="flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer bg-purple-600/10 border border-purple-500/20 mb-2 hover:bg-purple-600/20 transition-all">
                   <div className="w-11 h-11 rounded-2xl bg-purple-900/40 flex items-center justify-center border border-white/10">
                     {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} className="w-full h-full object-cover rounded-2xl" /> : <User size={18}/>}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 text-left">
                     <p className="font-bold text-sm truncate">{u.username}</p>
-                    <p className="text-[10px] text-gray-500">Нажми, чтобы начать чат</p>
+                    <p className="text-[10px] text-gray-500">Начать беседу</p>
                   </div>
                 </div>
               ))}
-              <div className="border-b border-white/5 mx-4 my-4 opacity-20"></div>
+              <div className="border-b border-white/5 mx-4 my-4 opacity-10"></div>
             </div>
           )}
 
           {/* МОИ ЧАТЫ */}
-          <p className="text-[10px] text-gray-500 uppercase font-black px-4 mb-2 tracking-widest">Мои сообщения</p>
-          {filteredChats.length > 0 ? filteredChats.map(chat => {
+          <p className="text-[10px] text-gray-500 uppercase font-black px-4 mb-2 tracking-widest">Сообщения</p>
+          {filteredChats.map(chat => {
             const partner = getPartner(chat);
             const isActive = activeChat?.id === chat.id;
             return (
@@ -220,15 +235,13 @@ const Chat: React.FC = () => {
                 <div className="w-12 h-12 rounded-2xl bg-purple-900/50 flex items-center justify-center border border-white/10">
                   {getAvatarUrl(partner?.avatar) ? <img src={getAvatarUrl(partner.avatar)!} className="w-full h-full object-cover rounded-2xl" /> : <User size={20} className="text-purple-400"/>}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 text-left">
                   <p className="font-bold text-sm truncate text-gray-200">{partner?.username || 'Чат'}</p>
-                  <p className="text-xs text-gray-500 truncate opacity-80">{chat.latestMessage?.content || 'Нет сообщений'}</p>
+                  <p className="text-xs text-gray-500 truncate opacity-80">{chat.latestMessage?.content || 'Сообщений пока нет'}</p>
                 </div>
               </div>
             );
-          }) : (
-            <p className="text-center text-[11px] text-gray-600 mt-10">Ничего не найдено</p>
-          )}
+          })}
         </div>
       </div>
 
@@ -237,14 +250,14 @@ const Chat: React.FC = () => {
         {activeChat ? (
           <>
             <div className="h-20 px-8 flex items-center justify-between border-b border-white/5 bg-[#161426]/30 backdrop-blur-md z-10">
-              <div className="flex items-center gap-4">
-                <button onClick={() => setActiveChat(null)} className="md:hidden text-purple-400">←</button>
+              <div className="flex items-center gap-4 text-left">
+                <button onClick={() => setActiveChat(null)} className="md:hidden text-purple-400 mr-2">←</button>
                 <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center border border-white/10">
                    {getAvatarUrl(getPartner(activeChat)?.avatar) ? <img src={getAvatarUrl(getPartner(activeChat).avatar)!} className="w-full h-full object-cover rounded-xl" /> : <User size={18}/>}
                 </div>
                 <div>
                   <h2 className="font-bold text-sm text-white">{getPartner(activeChat)?.username}</h2>
-                  <span className="text-[10px] text-green-500 font-black tracking-widest uppercase">в сети</span>
+                  <span className="text-[10px] text-green-500 font-black tracking-widest uppercase animate-pulse">в сети</span>
                 </div>
               </div>
             </div>
@@ -253,7 +266,7 @@ const Chat: React.FC = () => {
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[75%] px-4 py-2.5 rounded-[22px] shadow-xl ${msg.senderId === user?.id ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-[#1f1d33] border border-white/5 text-gray-200 rounded-tl-none'}`}>
-                    <p className="text-[13.5px] leading-relaxed">{msg.content}</p>
+                    <p className="text-[13.5px] leading-relaxed text-left">{msg.content}</p>
                     <span className="text-[9px] opacity-30 mt-1 block text-right italic">{new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                   </div>
                 </div>
@@ -278,10 +291,10 @@ const Chat: React.FC = () => {
             </div>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-40">
+          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-40 p-10">
              <div className="w-24 h-24 bg-purple-500/10 rounded-full flex items-center justify-center mb-6 text-5xl">🌌</div>
              <h2 className="text-2xl font-black italic tracking-tighter">Lumina Messenger</h2>
-             <p className="text-sm max-w-[200px] mt-2 font-medium italic">Найдите друзей через поиск</p>
+             <p className="text-sm max-w-[200px] mt-2 font-medium">Выберите чат, чтобы мгновенно начать общение</p>
           </div>
         )}
       </div>
