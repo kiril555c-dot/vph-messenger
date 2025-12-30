@@ -3,83 +3,46 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/prisma';
 
-export const register = async (req: Request, res: Response) => {
+// ... (register и login остаются такими же, добавляем новую функцию вниз)
+
+export const updateProfile = async (req: any, res: Response) => {
   try {
-    const { username, email, password } = req.body;
+    // ID пользователя берется из middleware protect (req.user.id)
+    const userId = req.user.id;
+    const { username, bio } = req.body;
 
-    // Check if user exists
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email },
-          { username }
-        ]
-      }
-    });
+    // Подготавливаем данные для обновления
+    const updateData: any = {};
+    if (username) updateData.username = username;
+    if (bio !== undefined) updateData.bio = bio;
 
-    if (existingUser) {
-      res.status(400).json({ message: 'User already exists' });
-      return;
+    // Если multer сохранил файл, добавляем путь к аватарке
+    if (req.file) {
+      // Сохраняем путь, который будет доступен через express.static
+      updateData.avatar = `/uploads/${req.file.filename}`;
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        username,
-        email,
-        password: hashedPassword
-      }
+    // Обновляем пользователя в базе данных через Prisma
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
     });
-
-    // Generate tokens
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET as string, { expiresIn: '1h' });
-    const refreshToken = jwt.sign({ userId: user.id }, process.env.JWT_REFRESH_SECRET as string, { expiresIn: '7d' });
-
-    res.status(201).json({
-      message: 'User created successfully',
-      user: { id: user.id, username: user.username, email: user.email },
-      token,
-      refreshToken
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-export const login = async (req: Request, res: Response) => {
-  try {
-    const { email, password } = req.body;
-
-    // Find user
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      res.status(400).json({ message: 'Invalid credentials' });
-      return;
-    }
-
-    // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      res.status(400).json({ message: 'Invalid credentials' });
-      return;
-    }
-
-    // Generate tokens
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET as string, { expiresIn: '1h' });
-    const refreshToken = jwt.sign({ userId: user.id }, process.env.JWT_REFRESH_SECRET as string, { expiresIn: '7d' });
 
     res.json({
-      message: 'Login successful',
-      user: { id: user.id, username: user.username, email: user.email, avatar: user.avatar },
-      token,
-      refreshToken
+      message: 'Профиль успешно обновлен',
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        avatar: updatedUser.avatar,
+        bio: updatedUser.bio
+      }
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: 'Ошибка при обновлении профиля' });
   }
 };
+
+// Не забудь добавить экспорт существующих функций
+export { register, login };
