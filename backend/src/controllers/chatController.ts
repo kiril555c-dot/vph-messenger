@@ -73,9 +73,29 @@ export const createChat = async (req: AuthRequest, res: Response) => {
                 select: { id: true, username: true, avatar: true, isOnline: true, lastSeen: true }
               }
             }
+          },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
           }
         }
       });
+
+      // === ДОБАВЛЕНО: Realtime-уведомление о новом чате ===
+      const io = req.app.get('io');
+      if (io) {
+        const chatForClient = {
+          ...chat,
+          unreadCount: 0,                    // Новый чат — непрочитанных нет
+          latestMessage: chat.messages.length > 0 ? chat.messages[0] : null
+        };
+
+        // Отправляем событие обоим участникам
+        io.to(`user_${currentUserId}`).emit('new_chat', chatForClient);
+        io.to(`user_${targetPartnerId}`).emit('new_chat', chatForClient);
+      }
+      // ================================================
+
       return res.status(201).json(chat);
     }
   } catch (error) {
@@ -195,12 +215,4 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
           select: { id: true, username: true, avatar: true }
         }
       },
-      orderBy: { createdAt: 'asc' }
-    });
-
-    return res.json(messages);
-  } catch (error) {
-    console.error("GET MESSAGES ERROR:", error);
-    return res.status(500).json({ message: 'Server error while fetching messages' });
-  }
-};
+      orderBy: { createdAt: 'asc'

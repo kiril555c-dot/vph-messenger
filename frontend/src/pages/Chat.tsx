@@ -77,7 +77,7 @@ const Chat: React.FC = () => {
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, user]);
 
-  // 3. Обработка Socket событий
+  // 3. Обработка Socket событий (здесь добавлено handleNewChat для realtime нового чата)
   useEffect(() => {
     if (!socket) return;
     
@@ -92,19 +92,30 @@ const Chat: React.FC = () => {
       fetchChats(localStorage.getItem('token') || '');
     };
 
+    const handleNewChat = (chat: any) => {
+      setChats((prev) => {
+        const exists = prev.find((c) => c.id === chat.id);
+        if (exists) return prev;
+        return [chat, ...prev];  // Добавляем новый чат в список
+      });
+    };
+
     socket.on('new_message', handleNewMessage);
+    socket.on('new_chat', handleNewChat);  // ← Это ключевой добавленный слушатель
+
     if (activeChat) {
       socket.emit('join_chat', activeChat.id);
       fetchMessages(activeChat.id);
     }
     return () => { 
         socket.off('new_message', handleNewMessage);
+        socket.off('new_chat', handleNewChat);  // ← Очистка
         socket.off('typing');
         socket.off('stop_typing');
     };
   }, [socket, activeChat]);
 
-  // 4. Функции API
+  // 4. Функции API (без изменений)
   const fetchChats = async (token: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/chats`, { headers: { Authorization: `Bearer ${token}` } });
@@ -124,7 +135,6 @@ const Chat: React.FC = () => {
     } catch (e) { console.error("Ошибка загрузки сообщений:", e); }
   };
 
-  // МГНОВЕННОЕ ОТКРЫТИЕ ЧАТА
   const startChat = async (targetUser: any) => {
     const token = localStorage.getItem('token');
     try {
@@ -140,20 +150,17 @@ const Chat: React.FC = () => {
       if (res.ok) {
         const chat = await res.json();
         
-        // Обновляем список чатов локально, чтобы не ждать перезагрузки
         setChats((prev) => {
           const exists = prev.find((c) => c.id === chat.id);
           if (exists) return prev;
           return [chat, ...prev];
         });
 
-        // Сразу открываем этот чат
         setActiveChat(chat);
         setSearchQuery('');
         setFoundUsers([]);
         setSelectedUser(null);
         
-        // Сразу запрашиваем сообщения и подключаемся к комнате
         fetchMessages(chat.id);
         socket?.emit('join_chat', chat.id);
       }
