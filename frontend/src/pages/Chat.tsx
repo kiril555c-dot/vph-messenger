@@ -21,12 +21,10 @@ const Chat: React.FC = () => {
   
   const [foundUsers, setFoundUsers] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedName, setEditedName] = useState('');
-  const [editedBio, setEditedBio] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 1. Загрузка профиля и инициализация сокета
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -38,8 +36,6 @@ const Chat: React.FC = () => {
     try {
       const parsedUser = JSON.parse(storedUser);
       setUser(parsedUser);
-      setEditedName(parsedUser.username || '');
-      setEditedBio(parsedUser.bio || "Пользователь Lumina 🌌");
 
       const newSocket = io(API_BASE_URL, {
         transports: ['websocket'],
@@ -53,39 +49,19 @@ const Chat: React.FC = () => {
       setSocket(newSocket);
       fetchChats(token);
 
-      return () => {
-        newSocket.disconnect();
-      };
+      return () => { newSocket.disconnect(); };
     } catch (e) {
-      console.error("Auth error:", e);
       navigate('/login');
     }
   }, [navigate]);
 
-  useEffect(() => {
-    if (!user) return;
-    const searchGlobal = async () => {
-      if (searchQuery.trim().length < 1) {
-        setFoundUsers([]);
-        return;
-      }
-      const token = localStorage.getItem('token');
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/users/search?query=${encodeURIComponent(searchQuery)}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setFoundUsers(data.filter((u: any) => u.id !== user.id));
-        }
-      } catch (e) { console.error(e); }
-    };
-    const timer = setTimeout(searchGlobal, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, user]);
-
+  // 2. Логика сокетов (с защитой от дублей)
   useEffect(() => {
     if (!socket || !user) return;
+
+    socket.off('new_message'); // Чистим старые, чтобы не было дублей как на скрине
+    socket.off('typing');
+    socket.off('stop_typing');
 
     socket.on('typing', (chatId: string) => {
       if (activeChat?.id === chatId) setIsPartnerTyping(true);
@@ -94,7 +70,7 @@ const Chat: React.FC = () => {
       if (activeChat?.id === chatId) setIsPartnerTyping(false);
     });
 
-    const handleNewMessage = (message: any) => {
+    socket.on('new_message', (message: any) => {
       if (activeChat?.id === message.chatId) {
         setMessages(prev => {
           if (prev.some(m => m.id === message.id)) return prev;
@@ -103,9 +79,7 @@ const Chat: React.FC = () => {
         setTimeout(scrollToBottom, 100);
       }
       fetchChats(localStorage.getItem('token') || '');
-    };
-
-    socket.on('new_message', handleNewMessage);
+    });
 
     if (activeChat) {
       socket.emit('join_chat', activeChat.id);
@@ -124,10 +98,7 @@ const Chat: React.FC = () => {
       const res = await fetch(`${API_BASE_URL}/api/chats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      if (res.ok) {
-        const data = await res.json();
-        setChats(data || []);
-      }
+      if (res.ok) setChats(await res.json());
     } catch (e) { console.error(e); }
   };
 
@@ -144,32 +115,13 @@ const Chat: React.FC = () => {
     } catch (e) { console.error(e); }
   };
 
-  const startChat = async (targetUser: any) => {
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/chats`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ userId: targetUser.id }),
-      });
-      if (res.ok) {
-        const chat = await res.json();
-        setChats(prev => prev.some(c => c.id === chat.id) ? prev : [chat, ...prev]);
-        setActiveChat(chat);
-        setSearchQuery('');
-        setFoundUsers([]);
-        setSelectedUser(null);
-        socket?.emit('join_chat', chat.id);
-      }
-    } catch (e) { console.error(e); }
-  };
-
   const sendTextMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!newMessage.trim() || !activeChat || !socket) return;
     const content = newMessage.trim();
     setNewMessage('');
     socket.emit('stop_typing', activeChat.id);
+
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE_URL}/api/chats/message`, {
@@ -190,83 +142,38 @@ const Chat: React.FC = () => {
   const getPartner = (chat: any) => chat?.chatMembers?.find((m: any) => m.user.id !== user?.id)?.user;
   const getAvatarUrl = (avatar: string | null) => avatar ? (avatar.startsWith('http') ? avatar : `${API_BASE_URL}${avatar}`) : null;
 
-  if (!user) return <div className="flex h-screen items-center justify-center bg-[#0f0c1d] text-white">🌌 Lumina загружается...</div>;
+  if (!user) return <div className="h-screen bg-[#0f0c1d] flex items-center justify-center text-white">🌌 Lumina загружается...</div>;
 
   return (
-    <div className="flex h-screen bg-[#0f0c1d] text-gray-100 font-sans overflow-hidden relative">
-      
-      {/* МОДАЛКА ПРОФИЛЯ */}
-      {selectedUser && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => setSelectedUser(null)}></div>
-          <div className="relative w-full max-w-[380px] bg-[#161426] rounded-[32px] overflow-hidden shadow-2xl border border-white/10">
-            <div className="h-28 bg-gradient-to-tr from-purple-600 to-blue-900 relative">
-               <button onClick={() => setSelectedUser(null)} className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 rounded-full"><X size={18} /></button>
-            </div>
-            <div className="px-6 pb-8 text-center -mt-12 relative">
-              <div className="inline-block p-1.5 bg-[#161426] rounded-[30px] mb-4">
-                <div className="w-24 h-24 rounded-[24px] bg-purple-900/50 border-2 border-white/5 overflow-hidden flex items-center justify-center">
-                  {getAvatarUrl(selectedUser.avatar) ? <img src={getAvatarUrl(selectedUser.avatar)!} className="w-full h-full object-cover" /> : <User size={40} className="text-purple-400" />}
-                </div>
-              </div>
-              <h3 className="text-2xl font-bold">{selectedUser.username}</h3>
-              <p className="text-purple-400 text-xs mb-6 uppercase tracking-widest">@{selectedUser.username.toLowerCase()}</p>
-              {selectedUser.id !== user?.id && (
-                 <button onClick={() => startChat(selectedUser)} className="w-full mb-4 py-4 bg-purple-600 hover:bg-purple-500 rounded-2xl font-bold transition-all shadow-lg active:scale-95">Написать сообщение</button>
-              )}
-              <div className="text-left space-y-4 border-t border-white/5 pt-4">
-                <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">О себе</p>
-                <p className="text-sm text-gray-300 leading-relaxed">{selectedUser.bio || "Пользователь Lumina 🌌"}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <div className="flex h-screen bg-[#0f0c1d] text-gray-100 font-sans overflow-hidden">
       {/* SIDEBAR */}
       <div className={`w-full md:w-[380px] bg-[#161426] border-r border-white/5 flex flex-col ${activeChat ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-6 flex items-center justify-between">
           <h1 className="text-2xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">Lumina</h1>
-          <div className="flex items-center gap-3">
-             <div onClick={() => setSelectedUser(user)} className="w-9 h-9 rounded-xl bg-purple-500/20 border border-white/10 overflow-hidden cursor-pointer flex items-center justify-center hover:scale-105 transition-transform">
-                {getAvatarUrl(user?.avatar) ? <img src={getAvatarUrl(user.avatar)!} className="w-full h-full object-cover" /> : <User size={18}/>}
-             </div>
-             <button onClick={() => { localStorage.clear(); navigate('/login'); }} className="text-gray-500 hover:text-white"><LogOut size={20}/></button>
-          </div>
+          <button onClick={() => { localStorage.clear(); navigate('/login'); }} className="text-gray-500 hover:text-white"><LogOut size={20}/></button>
         </div>
 
         <div className="px-6 pb-4">
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-            <input type="text" placeholder="Поиск людей..." className="w-full bg-[#1f1d33] rounded-2xl py-3 pl-11 pr-4 text-sm outline-none focus:ring-1 focus:ring-purple-500/50" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-          </div>
+          <input 
+            type="text" 
+            placeholder="Поиск..." 
+            className="w-full bg-[#1f1d33] rounded-2xl py-3 px-4 text-sm outline-none" 
+            value={searchQuery} 
+            onChange={e => setSearchQuery(e.target.value)} 
+          />
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
-          {foundUsers.map(u => (
-            <div key={u.id} onClick={() => startChat(u)} className="flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer hover:bg-purple-600/20 border border-transparent bg-purple-600/5 mb-1 active:scale-95">
-              <div className="w-12 h-12 rounded-2xl bg-purple-900/30 overflow-hidden border border-white/5 flex items-center justify-center text-purple-400 font-bold">
-                {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} className="w-full h-full object-cover" /> : u.username[0].toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="font-bold text-sm block">{u.username}</span>
-                <span className="text-[10px] text-purple-400 font-medium">Нажми, чтобы начать чат</span>
-              </div>
-            </div>
-          ))}
-
-          <p className="text-[10px] text-gray-500 uppercase font-bold px-4 mb-2 tracking-widest">Мои чаты</p>
+        <div className="flex-1 overflow-y-auto px-3">
           {chats.map(chat => {
             const partner = getPartner(chat);
-            const isActive = activeChat?.id === chat.id;
             return (
-              <div key={chat.id} onClick={() => setActiveChat(chat)} className={`flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer transition-all ${isActive ? 'bg-purple-600/10 border border-white/5 shadow-lg' : 'hover:bg-white/5'}`}>
-                <div onClick={(e) => { e.stopPropagation(); setSelectedUser(partner); }} className="w-12 h-12 rounded-2xl bg-purple-900/50 overflow-hidden border border-white/10 flex items-center justify-center">
-                   {getAvatarUrl(partner?.avatar) ? <img src={getAvatarUrl(partner.avatar)!} className="w-full h-full object-cover" /> : <User size={20} className="text-purple-400" />}
+              <div key={chat.id} onClick={() => setActiveChat(chat)} className={`flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer mb-1 ${activeChat?.id === chat.id ? 'bg-purple-600/20 border border-white/5' : 'hover:bg-white/5'}`}>
+                <div className="w-12 h-12 rounded-2xl bg-purple-900/50 flex items-center justify-center border border-white/10">
+                  {getAvatarUrl(partner?.avatar) ? <img src={getAvatarUrl(partner.avatar)!} className="w-full h-full object-cover rounded-2xl" /> : <User size={20}/>}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="font-bold text-sm truncate block">{partner?.username || 'Чат'}</span>
-                  <p className="text-xs text-gray-400 truncate opacity-70">{chat.latestMessage?.content || "Нет сообщений"}</p>
+                  <p className="font-bold text-sm truncate">{partner?.username || 'Чат'}</p>
+                  <p className="text-xs text-gray-500 truncate">{chat.latestMessage?.content || 'Нет сообщений'}</p>
                 </div>
               </div>
             );
@@ -274,52 +181,44 @@ const Chat: React.FC = () => {
         </div>
       </div>
 
-      {/* ОКНО ЧАТА */}
-      <div className={`flex-1 flex flex-col bg-[#0f0c1d] relative ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
+      {/* CHAT WINDOW */}
+      <div className={`flex-1 flex flex-col ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
         {activeChat ? (
           <>
-            <div className="h-20 px-8 flex items-center justify-between border-b border-white/5 bg-[#0f0c1d]/50 backdrop-blur-xl z-10">
+            <div className="h-20 px-8 flex items-center justify-between border-b border-white/5 bg-[#161426]/50">
               <div className="flex items-center gap-4">
-                <button onClick={() => setActiveChat(null)} className="md:hidden text-purple-400 text-2xl mr-2">←</button>
-                <div onClick={() => setSelectedUser(getPartner(activeChat))} className="w-10 h-10 rounded-xl bg-purple-500/20 border border-white/10 overflow-hidden cursor-pointer flex items-center justify-center hover:scale-105 transition-transform">
-                    {getAvatarUrl(getPartner(activeChat)?.avatar) ? <img src={getAvatarUrl(getPartner(activeChat).avatar)!} className="w-full h-full object-cover" /> : <User size={18}/>}
-                </div>
+                <button onClick={() => setActiveChat(null)} className="md:hidden text-purple-400">←</button>
                 <div>
-                  <h2 className="font-bold text-base">{getPartner(activeChat)?.username}</h2>
-                  <span className={`text-[11px] font-bold ${isPartnerTyping ? 'text-pink-400 animate-pulse' : 'text-green-500'}`}>{isPartnerTyping ? 'печатает...' : 'в сети'}</span>
+                  <h2 className="font-bold">{getPartner(activeChat)?.username}</h2>
+                  <span className="text-[10px] text-green-500 uppercase font-black tracking-widest">в сети</span>
                 </div>
               </div>
-              <button className="text-gray-400 hover:text-white p-2 bg-white/5 rounded-xl"><MoreVertical size={18}/></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[75%] px-4 py-2.5 rounded-[20px] shadow-lg ${msg.senderId === user?.id ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-[#1f1d33] border border-white/5 text-gray-100 rounded-tl-none'}`}>
-                    <p className="text-[14px] leading-relaxed">{msg.content}</p>
-                    <span className="text-[9px] opacity-40 mt-1 block text-right">{new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  <div className={`max-w-[70%] px-4 py-2 rounded-[20px] ${msg.senderId === user?.id ? 'bg-purple-600' : 'bg-[#1f1d33]'}`}>
+                    <p className="text-sm">{msg.content}</p>
                   </div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-6">
-              <form onSubmit={sendTextMessage} className="max-w-4xl mx-auto flex items-center gap-3">
-                <div className="flex-1 flex items-center bg-[#1f1d33] border border-white/10 rounded-2xl px-3 focus-within:border-purple-500/40 transition-all">
-                  <button type="button" className="text-gray-400 p-2 hover:text-purple-400"><Smile size={20}/></button>
-                  <input type="text" value={newMessage} onChange={e => { setNewMessage(e.target.value); if (socket) socket.emit('typing', activeChat.id); }} placeholder="Ваше сообщение..." className="flex-1 bg-transparent border-none py-4 text-sm outline-none" />
-                </div>
-                <button type="submit" className="w-12 h-12 flex items-center justify-center bg-purple-600 rounded-xl hover:bg-purple-500 transition-all"><Send size={18} className="text-white" /></button>
-              </form>
-            </div>
+            <form onSubmit={sendTextMessage} className="p-6 flex gap-3">
+              <input 
+                type="text" 
+                value={newMessage} 
+                onChange={e => setNewMessage(e.target.value)} 
+                className="flex-1 bg-[#1f1d33] border border-white/10 rounded-2xl px-4 outline-none" 
+                placeholder="Сообщение..." 
+              />
+              <button className="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center"><Send size={18}/></button>
+            </form>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
-             <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mb-6 animate-pulse text-4xl">🌌</div>
-             <h2 className="text-xl font-bold text-white/80">Lumina Messenger</h2>
-             <p className="text-gray-500 text-sm max-w-xs mt-2">Выберите чат или воспользуйтесь поиском, чтобы начать общение</p>
-          </div>
+          <div className="flex-1 flex items-center justify-center text-gray-500">Выберите чат, чтобы начать общение</div>
         )}
       </div>
     </div>
