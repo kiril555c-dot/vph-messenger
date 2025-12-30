@@ -1,54 +1,76 @@
 @import "tailwindcss";
 
 @theme {
-  --color-flick-orange: #FF6B00;
-  --color-flick-blue: #00A3FF;
-  --color-flick-dark: #1A1A1A;
-  --color-flick-light: #F5F5F5;
-  --color-flick-glass: rgba(255, 255, 255, 0.1);
+  /* Новая космическая палитра */
+  --color-flick-purple: #a855f7;
+  --color-flick-pink: #ec4899;
+  --color-flick-deep: #0f0c1d;
+  --color-flick-card: #161426;
+  --color-flick-input: #1f1d33;
   
-  --font-pixel: "Press Start 2P", cursive;
-  --font-sans: "Inter", sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
   
-  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-  --shadow-pixel: 4px 4px 0px 0px rgba(0,0,0,1);
-  
-  --blur-xs: 2px;
+  /* Мягкие тени и блюр */
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  --blur-xl: 20px;
 }
 
 @layer components {
+  /* Эффект стеклянной панели */
   .glass-panel {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(22, 20, 38, 0.7);
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+    border: 1px solid rgba(255, 255, 255, 0.05);
   }
   
+  /* Кнопки теперь с градиентом и закругленные */
   .pixel-btn {
-    @apply font-pixel text-xs px-4 py-2 bg-flick-orange text-white shadow-pixel hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:translate-x-[4px] active:translate-y-[4px];
+    @apply font-sans font-bold px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl transition-all hover:brightness-110 active:scale-95 shadow-lg shadow-purple-500/20;
   }
 
+  /* Поля ввода в стиле Modern Dark */
   .pixel-input {
-    @apply font-sans bg-white/10 border-2 border-flick-blue/50 p-2 focus:outline-none focus:border-flick-orange transition-colors placeholder-white/50 text-white;
+    @apply font-sans bg-[#1f1d33] border border-white/5 p-3 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition-all placeholder-gray-500 text-white;
   }
 }
 
 body {
-  @apply bg-[#1A1A1A] text-white font-sans overflow-hidden;
-  background-image:
-    radial-gradient(circle at 10% 20%, rgba(255, 107, 0, 0.1) 0%, transparent 20%),
-    radial-gradient(circle at 90% 80%, rgba(0, 163, 255, 0.1) 0%, transparent 20%);
+  @apply bg-[#0f0c1d] text-gray-100 font-sans overflow-hidden;
+  /* Космический фон с мягким свечением */
+  background-image: 
+    radial-gradient(circle at 15% 15%, rgba(168, 85, 247, 0.15) 0%, transparent 25%),
+    radial-gradient(circle at 85% 85%, rgba(236, 72, 153, 0.1) 0%, transparent 25%);
+  height: 100vh;
 }
 
-/* Custom Scrollbar */
+/* Кастомный тонкий скроллбар */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(168, 85, 247, 0.3);
+}
+
+/* Для всех остальных элементов */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-[#1A1A1A];
+  @apply bg-[#0f0c1d];
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-[#00A3FF]/50 rounded-full hover:bg-[#FF6B00]/50 transition-colors;
+  background: rgba(168, 85, 247, 0.2);
+  border-radius: 10px;
 }
