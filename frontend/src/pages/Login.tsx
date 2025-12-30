@@ -45,15 +45,18 @@ const Login: React.FC = () => {
             <div className="inline-block px-4 py-1.5 mb-4 rounded-full bg-purple-500/10 border border-purple-500/20">
               <span className="text-purple-400 text-[10px] font-black uppercase tracking-[0.2em]">Next-Gen Messenger</span>
             </div>
-            <h2 className="text-5xl font-black italic tracking-tighter text-white">
+            
+            {/* ГРАДИЕНТ ДОБАВЛЕН ТУТ */}
+            <h2 className="text-5xl font-black italic tracking-tighter bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
               Lumina
             </h2>
+            
             <p className="text-gray-400 text-sm mt-2">Добро пожаловать обратно</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Email Field */}
-            <div className="space-y-2">
+            <div className="space-y-2 text-left">
               <label className="text-[11px] font-bold text-gray-500 uppercase ml-1 tracking-wider">Email Адрес</label>
               <input
                 type="email"
@@ -66,7 +69,7 @@ const Login: React.FC = () => {
             </div>
 
             {/* Password Field */}
-            <div className="space-y-2">
+            <div className="space-y-2 text-left">
               <label className="text-[11px] font-bold text-gray-500 uppercase ml-1 tracking-wider">Пароль</label>
               <input
                 type="password"
