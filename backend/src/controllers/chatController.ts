@@ -1,14 +1,18 @@
 import { Response } from 'express';
 import prisma from '../utils/prisma';
 import { AuthRequest } from '../middleware/authMiddleware';
+import { Server } from 'socket.io'; // ← Добавь этот импорт
 
-// 1. Создание чата (исправлено: теперь понимает и partnerId, и userId)
-export const createChat = async (req: AuthRequest, res: Response) => {
+// Добавляем io как параметр (в роуте ты передашь его через app.set('io', io) или в NestJS через @Inject)
+export const createChat = async (
+  req: AuthRequest,
+  res: Response,
+  io?: Server // ← Socket.IO сервер (опционально, но будет передан)
+) => {
   try {
     const { partnerId, userId: incomingUserId, isGroup, name } = req.body;
     const currentUserId = req.user?.userId;
 
-    // Универсальный ID партнера (берем любой, который пришел с фронта)
     const targetPartnerId = partnerId || incomingUserId;
 
     if (!currentUserId) {
@@ -23,16 +27,30 @@ export const createChat = async (req: AuthRequest, res: Response) => {
           chatMembers: {
             create: [{ userId: currentUserId, role: 'ADMIN' }]
           }
+        },
+        include: {
+          chatMembers: {
+            include: {
+              user: {
+                select: { id: true, username: true, avatar: true, isOnline: true, lastSeen: true }
+              }
+            }
+          },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
         }
       });
+
+      // Для групп можно тоже уведомлять, но пока не обязательно
       return res.status(201).json(chat);
     } else {
-      // Проверка: нельзя создать чат с самим собой или без партнера
       if (!targetPartnerId) {
         return res.status(400).json({ message: 'Target User ID (partnerId) is required' });
       }
 
-      // Ищем, нет ли уже такого чата между двумя юзерами
+      // Проверяем существующий чат
       const existingChat = await prisma.chat.findFirst({
         where: {
           isGroup: false,
@@ -60,7 +78,7 @@ export const createChat = async (req: AuthRequest, res: Response) => {
         return res.json(existingChat);
       }
 
-      // Создаем новый чат, если не нашли существующий
+      // Создаём новый чат
       const chat = await prisma.chat.create({
         data: {
           isGroup: false,
@@ -78,9 +96,32 @@ export const createChat = async (req: AuthRequest, res: Response) => {
                 select: { id: true, username: true, avatar: true, isOnline: true, lastSeen: true }
               }
             }
+          },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
           }
         }
       });
+
+      // === ВАЖНАЯ ЧАСТЬ: Уведомляем обоих пользователей о новом чате ===
+      if (io) {
+        // Формируем объект как в getChats (с unreadCount и latestMessage)
+        const chatForClients = {
+          ...chat,
+          unreadCount: 0, // Новый чат — непрочитанных нет
+          latestMessage: chat.messages.length > 0 ? chat.messages[0] : null
+        };
+
+        // Отправляем событие обоим участникам
+        // Предполагаем, что пользователи подключены к комнате по своему userId
+        io.to(`user_${currentUserId}`).emit('new_chat', chatForClients);
+        io.to(`user_${targetPartnerId}`).emit('new_chat', chatForClients);
+
+        // Альтернатива: если у тебя комнаты называются иначе — подправь под свой код
+        // Например: io.to(currentUserId).emit(...) или io.in(`user:${currentUserId}`)
+      }
+
       return res.status(201).json(chat);
     }
   } catch (error) {
@@ -89,7 +130,9 @@ export const createChat = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// 2. Получение списка всех чатов пользователя
+// Остальные функции оставляем почти без изменений
+// Но добавим небольшое улучшение в sendMessage — обновление списка чатов уже есть на фронте через new_message
+
 export const getChats = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
@@ -118,7 +161,6 @@ export const getChats = async (req: AuthRequest, res: Response) => {
       orderBy: { updatedAt: 'desc' }
     });
 
-    // Считаем непрочитанные для каждого чата
     const chatsWithExtras = await Promise.all(chats.map(async (chat: any) => {
       const unreadCount = await prisma.message.count({
         where: {
@@ -130,7 +172,6 @@ export const getChats = async (req: AuthRequest, res: Response) => {
         }
       });
       
-      // Достаем последнее сообщение для удобства фронтенда
       const latestMessage = chat.messages.length > 0 ? chat.messages[0] : null;
       
       return { ...chat, unreadCount, latestMessage };
@@ -143,8 +184,7 @@ export const getChats = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// 3. Отправка сообщения
-export const sendMessage = async (req: AuthRequest, res: Response) => {
+export const sendMessage = async (req: AuthRequest, res: Response, io?: Server) => {
   try {
     const { chatId, content, type, fileUrl } = req.body;
     const userId = req.user?.userId;
@@ -168,11 +208,16 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // Обновляем updatedAt чата, чтобы он всплыл наверх в списке
     await prisma.chat.update({
       where: { id: chatId },
       data: { updatedAt: new Date() }
     });
+
+    // Уведомляем всех в чате о новом сообщении (если io передан)
+    if (io) {
+      io.to(`chat_${chatId}`).emit('new_message', message);
+      // Также можно обновить latestMessage в списке чатов, но фронт уже делает fetchChats при new_message
+    }
 
     return res.status(201).json(message);
   } catch (error) {
@@ -181,7 +226,6 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// 4. Загрузка истории сообщений
 export const getMessages = async (req: AuthRequest, res: Response) => {
   try {
     const { chatId } = req.params;
@@ -191,7 +235,6 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // Проверка: принадлежит ли пользователь к этому чату
     const membership = await prisma.chatMember.findFirst({
         where: { chatId, userId }
     });
