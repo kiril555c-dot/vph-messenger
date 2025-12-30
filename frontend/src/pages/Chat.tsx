@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Send, LogOut, Search, X, Check, User, Smile, MoreVertical } from 'lucide-react';
+import { Send, LogOut, Search, X, Camera, Check, Edit3, User, Smile, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -27,13 +27,11 @@ const Chat: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // 1. Инициализация и Socket.io
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
-    if (!token || !storedUser) {
-      navigate('/login');
-      return;
-    }
+    if (!token || !storedUser) { navigate('/login'); return; }
 
     const parsedUser = JSON.parse(storedUser);
     setUser(parsedUser);
@@ -51,12 +49,10 @@ const Chat: React.FC = () => {
     
     setSocket(newSocket);
     fetchChats(token);
-
-    return () => {
-      newSocket.disconnect();
-    };
+    return () => { newSocket.disconnect(); };
   }, [navigate]);
 
+  // 2. Глобальный поиск людей
   useEffect(() => {
     const searchGlobal = async () => {
       if (searchQuery.trim().length < 1) {
@@ -81,16 +77,12 @@ const Chat: React.FC = () => {
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, user]);
 
-  // Главный useEffect с socket событиями — здесь добавлено new_chat
+  // 3. Обработка Socket событий
   useEffect(() => {
     if (!socket) return;
     
-    socket.on('typing', (chatId) => { 
-      if (activeChat?.id === chatId) setIsPartnerTyping(true); 
-    });
-    socket.on('stop_typing', (chatId) => { 
-      if (activeChat?.id === chatId) setIsPartnerTyping(false); 
-    });
+    socket.on('typing', (chatId) => { if (activeChat?.id === chatId) setIsPartnerTyping(true); });
+    socket.on('stop_typing', (chatId) => { if (activeChat?.id === chatId) setIsPartnerTyping(false); });
 
     const handleNewMessage = (message: any) => {
       if (activeChat?.id === message.chatId) {
@@ -100,34 +92,22 @@ const Chat: React.FC = () => {
       fetchChats(localStorage.getItem('token') || '');
     };
 
-    const handleNewChat = (chat: any) => {
-      setChats((prev) => {
-        if (prev.some(c => c.id === chat.id)) return prev;
-        return [chat, ...prev];
-      });
-    };
-
     socket.on('new_message', handleNewMessage);
-    socket.on('new_chat', handleNewChat); // ← Это решает твою главную проблему
-
     if (activeChat) {
       socket.emit('join_chat', activeChat.id);
       fetchMessages(activeChat.id);
     }
-
     return () => { 
-      socket.off('new_message', handleNewMessage);
-      socket.off('new_chat', handleNewChat);
-      socket.off('typing');
-      socket.off('stop_typing');
+        socket.off('new_message', handleNewMessage);
+        socket.off('typing');
+        socket.off('stop_typing');
     };
   }, [socket, activeChat]);
 
+  // 4. Функции API
   const fetchChats = async (token: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/chats`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
+      const res = await fetch(`${API_BASE_URL}/api/chats`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (Array.isArray(data)) setChats(data);
     } catch (e) { console.error("Ошибка чатов:", e); }
@@ -136,9 +116,7 @@ const Chat: React.FC = () => {
   const fetchMessages = async (chatId: string) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`${API_BASE_URL}/api/chats/${chatId}/messages`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
+      const res = await fetch(`${API_BASE_URL}/api/chats/${chatId}/messages`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         setMessages(await res.json());
         setTimeout(scrollToBottom, 100);
@@ -146,6 +124,7 @@ const Chat: React.FC = () => {
     } catch (e) { console.error("Ошибка загрузки сообщений:", e); }
   };
 
+  // МГНОВЕННОЕ ОТКРЫТИЕ ЧАТА
   const startChat = async (targetUser: any) => {
     const token = localStorage.getItem('token');
     try {
@@ -161,17 +140,20 @@ const Chat: React.FC = () => {
       if (res.ok) {
         const chat = await res.json();
         
+        // Обновляем список чатов локально, чтобы не ждать перезагрузки
         setChats((prev) => {
           const exists = prev.find((c) => c.id === chat.id);
           if (exists) return prev;
           return [chat, ...prev];
         });
 
+        // Сразу открываем этот чат
         setActiveChat(chat);
         setSearchQuery('');
         setFoundUsers([]);
         setSelectedUser(null);
         
+        // Сразу запрашиваем сообщения и подключаемся к комнате
         fetchMessages(chat.id);
         socket?.emit('join_chat', chat.id);
       }
@@ -360,17 +342,7 @@ const Chat: React.FC = () => {
               <form onSubmit={sendTextMessage} className="max-w-4xl mx-auto flex items-center gap-3">
                 <div className="flex-1 flex items-center bg-[#1f1d33] border border-white/10 rounded-2xl px-3 shadow-2xl focus-within:border-purple-500/40 transition-all">
                   <button type="button" className="text-gray-400 p-2 hover:text-purple-400"><Smile size={20}/></button>
-                  <input 
-                    type="text" 
-                    value={newMessage} 
-                    onChange={e => { 
-                      setNewMessage(e.target.value); 
-                      if (socket && e.target.value) socket.emit('typing', activeChat.id);
-                      if (socket && !e.target.value) socket.emit('stop_typing', activeChat.id);
-                    }} 
-                    placeholder="Ваше сообщение..." 
-                    className="flex-1 bg-transparent border-none py-4 text-sm outline-none" 
-                  />
+                  <input type="text" value={newMessage} onChange={e => { setNewMessage(e.target.value); if (socket) socket.emit('typing', activeChat.id); }} placeholder="Ваше сообщение..." className="flex-1 bg-transparent border-none py-4 text-sm outline-none" />
                 </div>
                 <button type="submit" className="w-12 h-12 flex items-center justify-center bg-purple-600 rounded-xl hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/40"><Send size={18} className="text-white" /></button>
               </form>
