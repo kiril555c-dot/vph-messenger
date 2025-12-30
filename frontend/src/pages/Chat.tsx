@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Send, LogOut, Search, Paperclip, Smile, MoreVertical, X, UserPlus, MessageCircle, Camera, Check, Edit3, User } from 'lucide-react';
+import { Send, LogOut, Search, X, Camera, Check, Edit3, User, Smile, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -19,6 +19,8 @@ const Chat: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPartnerTyping, setIsPartnerTyping] = useState(false);
   
+  // Состояния для поиска и профиля
+  const [foundUsers, setFoundUsers] = useState<any[]>([]); // Глобальные пользователи
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState('');
@@ -28,6 +30,7 @@ const Chat: React.FC = () => {
   const typingTimeoutRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Инициализация
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -49,6 +52,33 @@ const Chat: React.FC = () => {
     return () => { newSocket.disconnect(); };
   }, [navigate]);
 
+  // ГЛОБАЛЬНЫЙ ПОИСК (Запрос к API)
+  useEffect(() => {
+    const searchGlobal = async () => {
+      if (searchQuery.length < 2) {
+        setFoundUsers([]);
+        return;
+      }
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/users/search?query=${searchQuery}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Исключаем себя из поиска
+          setFoundUsers(data.filter((u: any) => u.id !== user?.id));
+        }
+      } catch (e) {
+        console.error("Ошибка поиска:", e);
+      }
+    };
+
+    const delayDebounce = setTimeout(searchGlobal, 400); // Задержка, чтобы не спамить запросами
+    return () => clearTimeout(delayDebounce);
+  }, [searchQuery, user]);
+
+  // Сокеты и сообщения
   useEffect(() => {
     if (!socket) return;
     
@@ -95,6 +125,7 @@ const Chat: React.FC = () => {
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
     setIsEditing(false);
+    // Здесь можно добавить fetch-запрос на сервер для сохранения в БД
   };
 
   const sendTextMessage = async (e?: React.FormEvent) => {
@@ -124,7 +155,7 @@ const Chat: React.FC = () => {
   const getPartner = (chat: any) => chat.chatMembers?.find((m: any) => m.user.id !== user?.id)?.user;
   const getAvatarUrl = (avatar: string | null) => avatar ? (avatar.startsWith('http') ? avatar : `${API_BASE_URL}${avatar}`) : null;
 
-  // ЛОГИКА ПОИСКА
+  // Фильтрация существующих чатов локально
   const filteredChats = chats.filter(chat => {
     const partnerName = getPartner(chat)?.username?.toLowerCase() || '';
     return partnerName.includes(searchQuery.toLowerCase());
@@ -197,11 +228,32 @@ const Chat: React.FC = () => {
         <div className="px-6 pb-4">
           <div className="relative group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-purple-500 transition-colors" size={16} />
-            <input type="text" placeholder="Поиск чатов..." className="w-full bg-[#1f1d33] rounded-2xl py-3 pl-11 pr-4 text-sm outline-none focus:ring-1 focus:ring-purple-500/50 transition-all" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            <input type="text" placeholder="Поиск людей..." className="w-full bg-[#1f1d33] rounded-2xl py-3 pl-11 pr-4 text-sm outline-none focus:ring-1 focus:ring-purple-500/50 transition-all" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
+          {/* СЕКЦИЯ ГЛОБАЛЬНОГО ПОИСКА */}
+          {foundUsers.length > 0 && (
+            <div className="mb-4">
+              <p className="text-[10px] text-gray-500 uppercase font-bold px-4 mb-2 tracking-widest">Глобальный поиск</p>
+              {foundUsers.map(u => (
+                <div key={u.id} onClick={() => setSelectedUser(u)} className="flex items-center gap-4 p-3.5 rounded-[24px] cursor-pointer hover:bg-purple-600/10 transition-all border border-transparent hover:border-white/5">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-900/30 overflow-hidden border border-white/5 flex items-center justify-center text-purple-400 font-bold">
+                    {getAvatarUrl(u.avatar) ? <img src={getAvatarUrl(u.avatar)!} className="w-full h-full object-cover" /> : u.username[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-bold text-sm block">{u.username}</span>
+                    <span className="text-[10px] text-purple-400">Нажми, чтобы открыть профиль</span>
+                  </div>
+                </div>
+              ))}
+              <div className="border-b border-white/5 mx-4 my-2"></div>
+            </div>
+          )}
+
+          {/* СПИСОК СУЩЕСТВУЮЩИХ ЧАТОВ */}
+          <p className="text-[10px] text-gray-500 uppercase font-bold px-4 mb-2 tracking-widest">Мои чаты</p>
           {filteredChats.length > 0 ? filteredChats.map(chat => {
             const partner = getPartner(chat);
             const isActive = activeChat?.id === chat.id;
@@ -219,7 +271,7 @@ const Chat: React.FC = () => {
                 </div>
               </div>
             );
-          }) : <p className="text-center text-gray-500 text-xs mt-10">Ничего не найдено</p>}
+          }) : <p className="text-center text-gray-500 text-[11px] mt-10">Пока нет чатов</p>}
         </div>
       </div>
 
@@ -267,7 +319,7 @@ const Chat: React.FC = () => {
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
              <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mb-6 animate-pulse"><div className="text-4xl">🌌</div></div>
              <h2 className="text-xl font-bold text-white/80">Lumina Messenger</h2>
-             <p className="text-gray-500 text-sm max-w-xs mt-2">Выберите чат или воспользуйтесь поиском, чтобы начать общение</p>
+             <p className="text-gray-500 text-sm max-w-xs mt-2">Выберите чат или воспользуйтесь поиском, чтобы найти новых людей</p>
           </div>
         )}
       </div>
