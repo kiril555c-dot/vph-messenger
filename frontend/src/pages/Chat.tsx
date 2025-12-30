@@ -19,18 +19,15 @@ const Chat: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isPartnerTyping, setIsPartnerTyping] = useState(false);
   
-  // Состояния для поиска и профиля
-  const [foundUsers, setFoundUsers] = useState<any[]>([]); // Глобальные пользователи
+  const [foundUsers, setFoundUsers] = useState<any[]>([]); 
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [editedBio, setEditedBio] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Инициализация
   useEffect(() => {
     const token = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
@@ -52,7 +49,6 @@ const Chat: React.FC = () => {
     return () => { newSocket.disconnect(); };
   }, [navigate]);
 
-  // ГЛОБАЛЬНЫЙ ПОИСК (Запрос к API)
   useEffect(() => {
     const searchGlobal = async () => {
       if (searchQuery.length < 2) {
@@ -66,7 +62,6 @@ const Chat: React.FC = () => {
         });
         if (res.ok) {
           const data = await res.json();
-          // Исключаем себя из поиска
           setFoundUsers(data.filter((u: any) => u.id !== user?.id));
         }
       } catch (e) {
@@ -74,11 +69,10 @@ const Chat: React.FC = () => {
       }
     };
 
-    const delayDebounce = setTimeout(searchGlobal, 400); // Задержка, чтобы не спамить запросами
+    const delayDebounce = setTimeout(searchGlobal, 400);
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, user]);
 
-  // Сокеты и сообщения
   useEffect(() => {
     if (!socket) return;
     
@@ -120,12 +114,39 @@ const Chat: React.FC = () => {
     setTimeout(scrollToBottom, 100);
   };
 
+  // ФУНКЦИЯ ОТКРЫТИЯ/СОЗДАНИЯ ЧАТА
+  const startChat = async (targetUser: any) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chats`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId: targetUser.id }),
+      });
+
+      if (res.ok) {
+        const chat = await res.json();
+        setChats((prev) => {
+          const exists = prev.find((c) => c.id === chat.id);
+          return exists ? prev : [chat, ...prev];
+        });
+        setActiveChat(chat);
+        setSelectedUser(null);
+        setSearchQuery('');
+      }
+    } catch (e) {
+      console.error("Не удалось начать чат:", e);
+    }
+  };
+
   const handleSaveProfile = () => {
     const updatedUser = { ...user, username: editedName, bio: editedBio };
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
     setIsEditing(false);
-    // Здесь можно добавить fetch-запрос на сервер для сохранения в БД
   };
 
   const sendTextMessage = async (e?: React.FormEvent) => {
@@ -155,7 +176,6 @@ const Chat: React.FC = () => {
   const getPartner = (chat: any) => chat.chatMembers?.find((m: any) => m.user.id !== user?.id)?.user;
   const getAvatarUrl = (avatar: string | null) => avatar ? (avatar.startsWith('http') ? avatar : `${API_BASE_URL}${avatar}`) : null;
 
-  // Фильтрация существующих чатов локально
   const filteredChats = chats.filter(chat => {
     const partnerName = getPartner(chat)?.username?.toLowerCase() || '';
     return partnerName.includes(searchQuery.toLowerCase());
@@ -198,7 +218,7 @@ const Chat: React.FC = () => {
                     ) : (
                       <>
                         <button className="flex-1 py-3 bg-purple-600 hover:bg-purple-500 rounded-2xl font-semibold shadow-lg shadow-purple-900/20">В друзья</button>
-                        <button onClick={() => setSelectedUser(null)} className="flex-1 py-3 bg-white/5 border border-white/10 rounded-2xl font-semibold transition-all">Чат</button>
+                        <button onClick={() => startChat(selectedUser)} className="flex-1 py-3 bg-white/5 border border-white/10 rounded-2xl font-semibold transition-all hover:bg-white/10">Чат</button>
                       </>
                     )}
                   </div>
@@ -233,7 +253,6 @@ const Chat: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
-          {/* СЕКЦИЯ ГЛОБАЛЬНОГО ПОИСКА */}
           {foundUsers.length > 0 && (
             <div className="mb-4">
               <p className="text-[10px] text-gray-500 uppercase font-bold px-4 mb-2 tracking-widest">Глобальный поиск</p>
@@ -252,7 +271,6 @@ const Chat: React.FC = () => {
             </div>
           )}
 
-          {/* СПИСОК СУЩЕСТВУЮЩИХ ЧАТОВ */}
           <p className="text-[10px] text-gray-500 uppercase font-bold px-4 mb-2 tracking-widest">Мои чаты</p>
           {filteredChats.length > 0 ? filteredChats.map(chat => {
             const partner = getPartner(chat);
@@ -275,7 +293,6 @@ const Chat: React.FC = () => {
         </div>
       </div>
 
-      {/* CHAT AREA */}
       <div className={`flex-1 flex flex-col bg-[#0f0c1d] relative ${!activeChat ? 'hidden md:flex' : 'flex'}`}>
         {activeChat ? (
           <>
