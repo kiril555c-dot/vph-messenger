@@ -2,15 +2,17 @@ import { Response } from 'express';
 import prisma from '../utils/prisma';
 import { AuthRequest } from '../middleware/authMiddleware';
 
-// 1. Создание чата (личное или группа)
+// 1. Создание чата (исправлено: теперь понимает и partnerId, и userId)
 export const createChat = async (req: AuthRequest, res: Response) => {
   try {
-    const { partnerId, isGroup, name } = req.body;
-    const userId = req.user?.userId;
+    const { partnerId, userId: incomingUserId, isGroup, name } = req.body;
+    const currentUserId = req.user?.userId;
 
-    if (!userId) {
-      res.status(401).json({ message: 'Unauthorized' });
-      return;
+    // Универсальный ID партнера (берем любой, который пришел с фронта)
+    const targetPartnerId = partnerId || incomingUserId;
+
+    if (!currentUserId) {
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
     if (isGroup) {
@@ -19,19 +21,24 @@ export const createChat = async (req: AuthRequest, res: Response) => {
           isGroup: true,
           name: name || 'New Group',
           chatMembers: {
-            create: [{ userId: userId, role: 'ADMIN' }]
+            create: [{ userId: currentUserId, role: 'ADMIN' }]
           }
         }
       });
-      res.status(201).json(chat);
+      return res.status(201).json(chat);
     } else {
+      // Проверка: нельзя создать чат с самим собой или без партнера
+      if (!targetPartnerId) {
+        return res.status(400).json({ message: 'Target User ID (partnerId) is required' });
+      }
+
       // Ищем, нет ли уже такого чата между двумя юзерами
       const existingChat = await prisma.chat.findFirst({
         where: {
           isGroup: false,
           AND: [
-            { chatMembers: { some: { userId: userId } } },
-            { chatMembers: { some: { userId: partnerId } } }
+            { chatMembers: { some: { userId: currentUserId } } },
+            { chatMembers: { some: { userId: targetPartnerId } } }
           ]
         },
         include: {
@@ -41,22 +48,26 @@ export const createChat = async (req: AuthRequest, res: Response) => {
                 select: { id: true, username: true, avatar: true, isOnline: true, lastSeen: true }
               }
             }
+          },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
           }
         }
       });
 
       if (existingChat) {
-        res.json(existingChat);
-        return;
+        return res.json(existingChat);
       }
 
+      // Создаем новый чат, если не нашли существующий
       const chat = await prisma.chat.create({
         data: {
           isGroup: false,
           chatMembers: {
             create: [
-              { userId: userId },
-              { userId: partnerId }
+              { userId: currentUserId },
+              { userId: targetPartnerId }
             ]
           }
         },
@@ -70,11 +81,11 @@ export const createChat = async (req: AuthRequest, res: Response) => {
           }
         }
       });
-      res.status(201).json(chat);
+      return res.status(201).json(chat);
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("CREATE CHAT ERROR:", error);
+    return res.status(500).json({ message: 'Server error during chat creation' });
   }
 };
 
@@ -84,8 +95,7 @@ export const getChats = async (req: AuthRequest, res: Response) => {
     const userId = req.user?.userId;
 
     if (!userId) {
-      res.status(401).json({ message: 'Unauthorized' });
-      return;
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
     const chats = await prisma.chat.findMany({
@@ -108,7 +118,8 @@ export const getChats = async (req: AuthRequest, res: Response) => {
       orderBy: { updatedAt: 'desc' }
     });
 
-    const chatsWithUnread = await Promise.all(chats.map(async (chat: any) => {
+    // Считаем непрочитанные для каждого чата
+    const chatsWithExtras = await Promise.all(chats.map(async (chat: any) => {
       const unreadCount = await prisma.message.count({
         where: {
           chatId: chat.id,
@@ -118,13 +129,17 @@ export const getChats = async (req: AuthRequest, res: Response) => {
           }
         }
       });
-      return { ...chat, unreadCount };
+      
+      // Достаем последнее сообщение для удобства фронтенда
+      const latestMessage = chat.messages.length > 0 ? chat.messages[0] : null;
+      
+      return { ...chat, unreadCount, latestMessage };
     }));
 
-    res.json(chatsWithUnread);
+    return res.json(chatsWithExtras);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("GET CHATS ERROR:", error);
+    return res.status(500).json({ message: 'Server error while fetching chats' });
   }
 };
 
@@ -153,26 +168,20 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // Обновляем время чата, чтобы он поднялся в списке вверх
+    // Обновляем updatedAt чата, чтобы он всплыл наверх в списке
     await prisma.chat.update({
       where: { id: chatId },
       data: { updatedAt: new Date() }
     });
 
-    // Прокидываем сообщение в сокеты (если io привязан к req)
-    const io = (req as any).io;
-    if (io) {
-      io.to(chatId).emit('new_message', message);
-    }
-
-    res.status(201).json(message);
+    return res.status(201).json(message);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("SEND MESSAGE ERROR:", error);
+    return res.status(500).json({ message: 'Server error while sending message' });
   }
 };
 
-// 4. Загрузка сообщений конкретного чата
+// 4. Загрузка истории сообщений
 export const getMessages = async (req: AuthRequest, res: Response) => {
   try {
     const { chatId } = req.params;
@@ -180,6 +189,15 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
 
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    // Проверка: принадлежит ли пользователь к этому чату
+    const membership = await prisma.chatMember.findFirst({
+        where: { chatId, userId }
+    });
+
+    if (!membership) {
+        return res.status(403).json({ message: 'You are not a member of this chat' });
     }
 
     const messages = await prisma.message.findMany({
@@ -192,9 +210,9 @@ export const getMessages = async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'asc' }
     });
 
-    res.json(messages);
+    return res.json(messages);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("GET MESSAGES ERROR:", error);
+    return res.status(500).json({ message: 'Server error while fetching messages' });
   }
 };
