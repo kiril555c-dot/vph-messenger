@@ -47,10 +47,13 @@ const Register: React.FC = () => {
             <div className="inline-block px-4 py-1.5 mb-4 rounded-full bg-pink-500/10 border border-pink-500/20">
               <span className="text-pink-400 text-[10px] font-black uppercase tracking-[0.2em]">Join the Galaxy</span>
             </div>
-            <h2 className="text-5xl font-black italic tracking-tighter text-white">
+            
+            {/* Градиентный текст Lumina как на скриншоте */}
+            <h2 className="text-5xl font-black italic tracking-tighter bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
               Lumina
             </h2>
-            <p className="text-gray-400 text-sm mt-2">Создайте свой путь во вселенной</p>
+            
+            <p className="text-gray-400 text-sm mt-2 font-medium">Создайте свой путь во вселенной</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
