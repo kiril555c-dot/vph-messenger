@@ -12,6 +12,7 @@ import prisma from './utils/prisma';
 const app = express();
 const httpServer = createServer(app);
 
+// Список разрешенных доменов (CORS)
 const allowedOrigins = [
   "https://kiril555c-dot.github.io",
   "http://localhost:5173",
@@ -30,6 +31,7 @@ const io = new Server(httpServer, {
 
 app.set('io', io);
 
+// Настройка CORS
 app.use(cors({
   origin: allowedOrigins,
   credentials: true
@@ -37,19 +39,26 @@ app.use(cors({
 
 app.use(express.json());
 
-// === ПОПРАВКА ПУТИ ДЛЯ СТАТИКИ ===
-// Если app.ts лежит в src/, а uploads в корне, нужно выходить на 2 уровня вверх в dist
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// === ИСПРАВЛЕНИЕ СТАТИКИ ===
+// Используем абсолютный путь, чтобы папка uploads создавалась в корне проекта
+const uploadsPath = path.join(process.cwd(), 'uploads');
+app.use('/uploads', express.static(uploadsPath));
 
-// Роуты
-app.use('/api/users', authRoutes); // Тот самый роут для обновления профиля
-app.use('/api/chats', chatRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/users-list', userRoutes); // Переименовал, чтобы не было конфликта с authRoutes
-app.use('/api/user-list', userRoutes); // Дублируем для совместимости
+// Подключаем роуты
+app.use('/api/users', authRoutes);      // Регистрация, логин, профиль
+app.use('/api/chats', chatRoutes);      // Чаты и сообщения
+app.use('/api/upload', uploadRoutes);   // Загрузка файлов
+app.use('/api/users-list', userRoutes); // Поиск пользователей (оставляем основной)
 
 app.get('/', (req, res) => {
-  res.send('Flick Messenger API is running');
+  res.send('Lumina Messenger API is running');
+});
+
+// === ДОБАВЛЕНО: ОБРАБОТКА НЕПРАВИЛЬНЫХ ПУТЕЙ ===
+// Если фронтенд отправит запрос не туда, ты увидишь это в логах Render
+app.use((req, res) => {
+  console.log(`[404] Not Found: ${req.method} ${req.url}`);
+  res.status(404).json({ message: `Route ${req.url} not found on this server` });
 });
 
 const onlineUsers = new Map<string, string>();
@@ -58,13 +67,13 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('setup', async (userId: string) => {
-    if (!userId || userId === "undefined" || userId === "null") return;
+    // Валидация ID
+    if (!userId || userId === "undefined" || userId === "null" || typeof userId !== 'string') return;
     
     socket.join(userId);
     onlineUsers.set(socket.id, userId);
 
     try {
-      // ПРОВЕРКА: существует ли юзер, прежде чем менять статус (лечит P2025)
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (user) {
         await prisma.user.update({
@@ -79,12 +88,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join_chat', (chatId) => {
-    socket.join(chatId);
+    if (chatId) socket.join(chatId);
   });
 
   socket.on('new_message', (newMessageReceived) => {
     if (!newMessageReceived?.chatId) return;
-    socket.to(newMessageReceived.chatId).emit('new_message', newMessageReceived);
+    // Отправляем всем в комнате чата, кроме отправителя
+    socket.to(newMessageReceived.chatId).emit('message received', newMessageReceived);
   });
 
   socket.on('disconnect', async () => {

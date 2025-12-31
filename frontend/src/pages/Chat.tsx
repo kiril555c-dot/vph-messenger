@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, LogOut, User as UserIcon, Send, Phone, Video, MoreVertical, Paperclip, Smile } from 'lucide-react';
-// ИСПРАВЛЕНО: Правильный путь на основе структуры твоих папок
 import ProfileSettings from '../components/ProfileSettings'; 
 import { io } from 'socket.io-client';
 
+// Подключаемся к бэкенду
 const socket = io('https://vph-messenger.onrender.com');
 
 const Chat = () => {
@@ -17,7 +17,7 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Подключение к сокетам
+  // 1. Подключение к сокетам
   useEffect(() => {
     if (user?.id) {
       socket.emit('setup', user.id);
@@ -25,17 +25,18 @@ const Chat = () => {
     }
   }, [user.id]);
 
-  // Слушатель новых сообщений
+  // 2. Слушатель новых сообщений (Синхронизировано с твоим app.ts)
   useEffect(() => {
     const messageHandler = (message: any) => {
-      // Проверяем принадлежность сообщения к активному чату
       const currentChatId = activeChat?.id;
+      // Проверяем, что сообщение для текущего чата
       if (currentChatId && (message.chatId === currentChatId || message.chat?.id === currentChatId)) {
         setMessages(prev => [...prev, message]);
       }
-      fetchChats(); 
+      fetchChats(); // Обновляем список чатов
     };
 
+    // Слушаем оба варианта события для надежности
     socket.on('message received', messageHandler);
     socket.on('new_message', messageHandler);
 
@@ -45,6 +46,7 @@ const Chat = () => {
     };
   }, [activeChat]);
 
+  // Автопрокрутка вниз
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -59,6 +61,7 @@ const Chat = () => {
     } catch (err) { console.error("Ошибка чатов:", err); }
   };
 
+  // 3. Поиск (Синхронизировано с твоим app.use('/api/users-list', userRoutes))
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (query.trim().length > 1) {
@@ -66,9 +69,15 @@ const Chat = () => {
         const res = await fetch(`https://vph-messenger.onrender.com/api/users-list/search?query=${query}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
+        
+        if (!res.ok) throw new Error('Search failed');
+        
         const data = await res.json();
         setSearchResults(Array.isArray(data) ? data : []);
-      } catch (err) { console.error("Ошибка поиска:", err); }
+      } catch (err) { 
+        console.error("Ошибка поиска:", err); 
+        setSearchResults([]);
+      }
     } else {
       setSearchResults([]);
     }
@@ -86,7 +95,10 @@ const Chat = () => {
         body: JSON.stringify({ chatId: activeChat.id, content: newMessage })
       });
       const data = await res.json();
+      
+      // Отправляем в сокет, чтобы другой юзер сразу увидел
       socket.emit('new_message', data);
+      
       setMessages(prev => [...prev, data]);
       setNewMessage('');
     } catch (err) { console.error("Ошибка отправки:", err); }
@@ -129,14 +141,14 @@ const Chat = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4">
+        <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
           {searchResults.length > 0 && (
             <div className="mb-6">
               <p className="px-3 text-[10px] font-black text-purple-500 uppercase tracking-[2px] mb-3">Найдено</p>
               {searchResults.map((u: any) => (
                 <div key={u.id} className="p-3 hover:bg-white/5 rounded-2xl cursor-pointer flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center font-bold text-purple-400">
-                    {u.username[0].toUpperCase()}
+                    {u.username ? u.username[0].toUpperCase() : '?'}
                   </div>
                   <span className="font-medium">{u.username}</span>
                 </div>
@@ -152,12 +164,12 @@ const Chat = () => {
               className={`p-4 rounded-2xl mb-2 cursor-pointer transition-all ${activeChat?.id === chat.id ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/5 border-l-4 border-purple-500 shadow-lg' : 'hover:bg-white/5 border-l-4 border-transparent'}`}
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gray-800 border border-white/5 flex items-center justify-center font-bold">
-                  {chat.name?.[0] || 'C'}
+                <div className="w-12 h-12 rounded-full bg-gray-800 border border-white/5 flex items-center justify-center font-bold text-gray-400">
+                  {chat.name ? chat.name[0] : 'C'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="font-semibold truncate">{chat.name || 'Чат'}</span>
+                    <span className="font-semibold truncate">{chat.name || 'Диалог'}</span>
                   </div>
                   <p className="text-xs text-gray-500 truncate">Открыть переписку</p>
                 </div>
@@ -174,23 +186,23 @@ const Chat = () => {
             <div className="h-20 border-b border-white/5 flex items-center justify-between px-8 bg-[#18181d]/50 backdrop-blur-md">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center font-bold text-purple-400">
-                  {activeChat.name?.[0] || 'C'}
+                  {activeChat.name ? activeChat.name[0] : 'C'}
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm">{activeChat.name}</h3>
+                  <h3 className="font-bold text-sm">{activeChat.name || 'Чат'}</h3>
                   <span className="text-[10px] text-green-500 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> онлайн
                   </span>
                 </div>
               </div>
               <div className="flex gap-4 text-gray-400">
-                <Phone size={20} className="hover:text-purple-400 cursor-pointer" />
-                <Video size={20} className="hover:text-purple-400 cursor-pointer" />
-                <MoreVertical size={20} className="hover:text-purple-400 cursor-pointer" />
+                <Phone size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
+                <Video size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
+                <MoreVertical size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-8 space-y-4">
+            <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
               {messages.map((m, idx) => (
                 <div key={m.id || idx} className={`flex ${m.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[70%] p-4 rounded-2xl ${m.senderId === user.id ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-[#18181d] text-gray-200 rounded-tl-none border border-white/5'}`}>
@@ -230,7 +242,10 @@ const Chat = () => {
         <ProfileSettings 
           user={user} 
           onClose={() => setIsProfileOpen(false)} 
-          onUpdate={(updated: any) => { setUser(updated); localStorage.setItem('user', JSON.stringify(updated)); }}
+          onUpdate={(updated: any) => { 
+            setUser(updated); 
+            localStorage.setItem('user', JSON.stringify(updated)); 
+          }}
         />
       )}
     </div>
