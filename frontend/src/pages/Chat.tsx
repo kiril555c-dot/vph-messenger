@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, LogOut, User as UserIcon, Send, Phone, Video, MoreVertical, Paperclip, Smile } from 'lucide-react';
+import { Search, LogOut, Send, Phone, Video, MoreVertical, Paperclip } from 'lucide-react';
 import ProfileSettings from '../components/ProfileSettings'; 
 import { io } from 'socket.io-client';
 
-// Подключаемся к бэкенду
-const socket = io('https://vph-messenger.onrender.com');
+// Определяем базовый адрес API (берем из .env или используем прямой адрес)
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://vph-messenger.onrender.com';
+const socket = io(API_BASE_URL);
 
 const Chat = () => {
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
@@ -51,7 +52,7 @@ const Chat = () => {
 
   const fetchChats = async () => {
     try {
-      const res = await fetch('https://vph-messenger.onrender.com/api/chats', {
+      const res = await fetch(`${API_BASE_URL}/api/chats`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await res.json();
@@ -59,13 +60,12 @@ const Chat = () => {
     } catch (err) { console.error("Ошибка чатов:", err); }
   };
 
-  // 3. ИСПРАВЛЕННЫЙ ПОИСК (ПРЯМОЙ АДРЕС)
+  // 3. ИСПРАВЛЕННЫЙ ПОИСК (ИСПОЛЬЗУЕТ API_BASE_URL)
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (query.trim().length > 1) {
       try {
-        // Здесь был косяк с путем, теперь он полный и правильный
-        const res = await fetch(`https://vph-messenger.onrender.com/api/users-list/search?query=${query}`, {
+        const res = await fetch(`${API_BASE_URL}/api/users-list/search?query=${query}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         
@@ -85,7 +85,7 @@ const Chat = () => {
   const sendMessage = async () => {
     if (!newMessage.trim() || !activeChat) return;
     try {
-      const res = await fetch('https://vph-messenger.onrender.com/api/chats/message', {
+      const res = await fetch(`${API_BASE_URL}/api/chats/message`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -106,14 +106,13 @@ const Chat = () => {
       {/* Sidebar */}
       <div className="w-full md:w-96 bg-[#18181d] border-r border-white/5 flex flex-col shadow-2xl z-10">
         <div className="p-6 flex items-center justify-between">
-          {/* ИЗМЕНИЛ ЗАГОЛОВОК ДЛЯ ПРОВЕРКИ ОБНОВЛЕНИЯ */}
           <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent italic">
             Lumina FIXED
           </h1>
           <div className="flex gap-2">
             <button onClick={() => setIsProfileOpen(true)} className="p-1 hover:scale-105 transition-transform">
               <img 
-                src={user.avatar?.startsWith('/') ? `https://vph-messenger.onrender.com${user.avatar}` : user.avatar || 'https://ui-avatars.com/api/?name=' + user.username} 
+                src={user.avatar?.startsWith('/') ? `${API_BASE_URL}${user.avatar}` : user.avatar || 'https://ui-avatars.com/api/?name=' + user.username} 
                 className="w-10 h-10 rounded-full object-cover border-2 border-purple-500/30" 
                 alt="Avatar"
               />
