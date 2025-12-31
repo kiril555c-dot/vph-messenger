@@ -25,18 +25,16 @@ const Chat = () => {
     }
   }, [user.id]);
 
-  // 2. Слушатель новых сообщений (Синхронизировано с твоим app.ts)
+  // 2. Слушатель новых сообщений
   useEffect(() => {
     const messageHandler = (message: any) => {
       const currentChatId = activeChat?.id;
-      // Проверяем, что сообщение для текущего чата
       if (currentChatId && (message.chatId === currentChatId || message.chat?.id === currentChatId)) {
         setMessages(prev => [...prev, message]);
       }
-      fetchChats(); // Обновляем список чатов
+      fetchChats(); 
     };
 
-    // Слушаем оба варианта события для надежности
     socket.on('message received', messageHandler);
     socket.on('new_message', messageHandler);
 
@@ -61,11 +59,12 @@ const Chat = () => {
     } catch (err) { console.error("Ошибка чатов:", err); }
   };
 
-  /// 3. Поиск (Синхронизировано с твоим app.use('/api/users-list', userRoutes))
+  // 3. ИСПРАВЛЕННЫЙ ПОИСК (ПРЯМОЙ АДРЕС)
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (query.trim().length > 1) {
       try {
+        // Здесь был косяк с путем, теперь он полный и правильный
         const res = await fetch(`https://vph-messenger.onrender.com/api/users-list/search?query=${query}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
@@ -96,9 +95,7 @@ const Chat = () => {
       });
       const data = await res.json();
       
-      // Отправляем в сокет, чтобы другой юзер сразу увидел
       socket.emit('new_message', data);
-      
       setMessages(prev => [...prev, data]);
       setNewMessage('');
     } catch (err) { console.error("Ошибка отправки:", err); }
@@ -109,8 +106,9 @@ const Chat = () => {
       {/* Sidebar */}
       <div className="w-full md:w-96 bg-[#18181d] border-r border-white/5 flex flex-col shadow-2xl z-10">
         <div className="p-6 flex items-center justify-between">
+          {/* ИЗМЕНИЛ ЗАГОЛОВОК ДЛЯ ПРОВЕРКИ ОБНОВЛЕНИЯ */}
           <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent italic">
-            Lumina
+            Lumina FIXED
           </h1>
           <div className="flex gap-2">
             <button onClick={() => setIsProfileOpen(true)} className="p-1 hover:scale-105 transition-transform">
