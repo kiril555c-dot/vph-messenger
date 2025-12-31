@@ -3,8 +3,8 @@ import { Search, LogOut, Send, Phone, Video, MoreVertical, Paperclip } from 'luc
 import ProfileSettings from '../components/ProfileSettings'; 
 import { io } from 'socket.io-client';
 
-// Определяем базовый адрес API (берем из .env или используем прямой адрес)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://vph-messenger.onrender.com';
+// Прямой адрес твоего бэкенда на Render, чтобы поиск не выдавал 404 на GitHub Pages
+const API_BASE_URL = 'https://vph-messenger.onrender.com';
 const socket = io(API_BASE_URL);
 
 const Chat = () => {
@@ -60,13 +60,17 @@ const Chat = () => {
     } catch (err) { console.error("Ошибка чатов:", err); }
   };
 
-  // 3. ИСПРАВЛЕННЫЙ ПОИСК (ИСПОЛЬЗУЕТ API_BASE_URL)
+  // 3. ИСПРАВЛЕННЫЙ ПОИСК (Запросы теперь летят строго на Render)
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (query.trim().length > 1) {
       try {
+        // Убедись, что на бэкенде путь именно /api/users-list/search
         const res = await fetch(`${API_BASE_URL}/api/users-list/search?query=${query}`, {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+          headers: { 
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
         });
         
         if (!res.ok) throw new Error('Search failed');
@@ -99,6 +103,25 @@ const Chat = () => {
       setMessages(prev => [...prev, data]);
       setNewMessage('');
     } catch (err) { console.error("Ошибка отправки:", err); }
+  };
+
+  // Функция для создания чата при клике на найденного пользователя
+  const startChat = async (userId: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chats`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}` 
+        },
+        body: JSON.stringify({ userId })
+      });
+      const data = await res.json();
+      setActiveChat(data);
+      setSearchQuery('');
+      setSearchResults([]);
+      fetchChats();
+    } catch (err) { console.error("Ошибка создания чата:", err); }
   };
 
   return (
@@ -143,8 +166,12 @@ const Chat = () => {
             <div className="mb-6">
               <p className="px-3 text-[10px] font-black text-purple-500 uppercase tracking-[2px] mb-3">Найдено</p>
               {searchResults.map((u: any) => (
-                <div key={u.id} className="p-3 hover:bg-white/5 rounded-2xl cursor-pointer flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center font-bold text-purple-400">
+                <div 
+                  key={u.id} 
+                  onClick={() => startChat(u.id)}
+                  className="p-3 hover:bg-white/5 rounded-2xl cursor-pointer flex items-center gap-3 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center font-bold text-purple-400 border border-purple-500/20">
                     {u.username ? u.username[0].toUpperCase() : '?'}
                   </div>
                   <span className="font-medium">{u.username}</span>
