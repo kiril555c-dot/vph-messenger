@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, LogOut, User as UserIcon, Send, Phone, Video, MoreVertical, Paperclip, Smile } from 'lucide-react';
-// ИСПРАВЛЕНИЕ: Если ProfileSettings лежит в папке components, используй '../components/ProfileSettings'
-import ProfileSettings from './ProfileSettings'; 
+// ИСПРАВЛЕНО: Правильный путь на основе структуры твоих папок
+import ProfileSettings from '../components/ProfileSettings'; 
 import { io } from 'socket.io-client';
 
 const socket = io('https://vph-messenger.onrender.com');
@@ -28,11 +28,12 @@ const Chat = () => {
   // Слушатель новых сообщений
   useEffect(() => {
     const messageHandler = (message: any) => {
-      // Проверяем, относится ли сообщение к текущему открытому чату
-      if (activeChat && (message.chatId === activeChat.id || message.chat?.id === activeChat.id)) {
+      // Проверяем принадлежность сообщения к активному чату
+      const currentChatId = activeChat?.id;
+      if (currentChatId && (message.chatId === currentChatId || message.chat?.id === currentChatId)) {
         setMessages(prev => [...prev, message]);
       }
-      fetchChats(); // Обновляем список чатов для превью последнего сообщения
+      fetchChats(); 
     };
 
     socket.on('message received', messageHandler);
@@ -55,7 +56,7 @@ const Chat = () => {
       });
       const data = await res.json();
       if (Array.isArray(data)) setChats(data);
-    } catch (err) { console.error("Ошибка загрузки чатов:", err); }
+    } catch (err) { console.error("Ошибка чатов:", err); }
   };
 
   const handleSearch = async (query: string) => {
@@ -93,7 +94,7 @@ const Chat = () => {
 
   return (
     <div className="flex h-screen bg-[#0f0f13] text-white font-sans overflow-hidden">
-      {/* Список чатов */}
+      {/* Sidebar */}
       <div className="w-full md:w-96 bg-[#18181d] border-r border-white/5 flex flex-col shadow-2xl z-10">
         <div className="p-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent italic">
@@ -104,6 +105,7 @@ const Chat = () => {
               <img 
                 src={user.avatar?.startsWith('/') ? `https://vph-messenger.onrender.com${user.avatar}` : user.avatar || 'https://ui-avatars.com/api/?name=' + user.username} 
                 className="w-10 h-10 rounded-full object-cover border-2 border-purple-500/30" 
+                alt="Avatar"
               />
             </button>
             <button 
@@ -122,17 +124,17 @@ const Chat = () => {
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               placeholder="Поиск людей..."
-              className="w-full bg-[#23232a] border-none rounded-2xl py-3.5 pl-12 pr-4 text-sm focus:ring-2 focus:ring-purple-500/50 outline-none transition-all placeholder:text-gray-600"
+              className="w-full bg-[#23232a] border-none rounded-2xl py-3.5 pl-12 pr-4 text-sm focus:ring-2 focus:ring-purple-500/50 outline-none transition-all"
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4">
           {searchResults.length > 0 && (
             <div className="mb-6">
-              <p className="px-3 text-[10px] font-black text-purple-500 uppercase tracking-[2px] mb-3">Результаты поиска</p>
+              <p className="px-3 text-[10px] font-black text-purple-500 uppercase tracking-[2px] mb-3">Найдено</p>
               {searchResults.map((u: any) => (
-                <div key={u.id} className="p-3 hover:bg-white/5 rounded-2xl cursor-pointer flex items-center gap-3 transition-colors">
+                <div key={u.id} className="p-3 hover:bg-white/5 rounded-2xl cursor-pointer flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center font-bold text-purple-400">
                     {u.username[0].toUpperCase()}
                   </div>
@@ -142,7 +144,7 @@ const Chat = () => {
             </div>
           )}
 
-          <p className="px-3 text-[10px] font-black text-gray-500 uppercase tracking-[2px] mb-3">Чаты</p>
+          <p className="px-3 text-[10px] font-black text-gray-500 uppercase tracking-[2px] mb-3">Сообщения</p>
           {chats.map((chat: any) => (
             <div 
               key={chat.id} 
@@ -155,10 +157,9 @@ const Chat = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="font-semibold truncate">{chat.name || 'Диалог'}</span>
-                    <span className="text-[10px] text-gray-600">сейчас</span>
+                    <span className="font-semibold truncate">{chat.name || 'Чат'}</span>
                   </div>
-                  <p className="text-xs text-gray-500 truncate">Нажмите, чтобы открыть чат</p>
+                  <p className="text-xs text-gray-500 truncate">Открыть переписку</p>
                 </div>
               </div>
             </div>
@@ -166,7 +167,7 @@ const Chat = () => {
         </div>
       </div>
 
-      {/* Окно сообщений */}
+      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-[#0f0f13]">
         {activeChat ? (
           <>
@@ -176,20 +177,20 @@ const Chat = () => {
                   {activeChat.name?.[0] || 'C'}
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm">{activeChat.name || 'Чат'}</h3>
+                  <h3 className="font-bold text-sm">{activeChat.name}</h3>
                   <span className="text-[10px] text-green-500 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> онлайн
                   </span>
                 </div>
               </div>
               <div className="flex gap-4 text-gray-400">
-                <Phone size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
-                <Video size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
-                <MoreVertical size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
+                <Phone size={20} className="hover:text-purple-400 cursor-pointer" />
+                <Video size={20} className="hover:text-purple-400 cursor-pointer" />
+                <MoreVertical size={20} className="hover:text-purple-400 cursor-pointer" />
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-8 space-y-4">
               {messages.map((m, idx) => (
                 <div key={m.id || idx} className={`flex ${m.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[70%] p-4 rounded-2xl ${m.senderId === user.id ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-[#18181d] text-gray-200 rounded-tl-none border border-white/5'}`}>
@@ -220,7 +221,7 @@ const Chat = () => {
           <div className="flex-1 flex flex-col items-center justify-center text-center opacity-40">
             <Send size={60} className="text-purple-500 mb-6" />
             <h2 className="text-2xl font-bold mb-2">Lumina Messenger</h2>
-            <p className="max-w-xs text-sm">Выберите чат из списка слева, чтобы начать общение</p>
+            <p className="max-w-xs text-sm">Выберите чат для начала общения</p>
           </div>
         )}
       </div>
