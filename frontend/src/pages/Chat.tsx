@@ -3,7 +3,7 @@ import { Search, LogOut, Send, Phone, Video, MoreVertical, Paperclip } from 'luc
 import ProfileSettings from '../components/ProfileSettings'; 
 import { io } from 'socket.io-client';
 
-// Прямой адрес твоего бэкенда на Render, чтобы поиск не выдавал 404 на GitHub Pages
+// Адрес бэкенда
 const API_BASE_URL = 'https://vph-messenger.onrender.com';
 const socket = io(API_BASE_URL);
 
@@ -18,7 +18,6 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. Подключение к сокетам
   useEffect(() => {
     if (user?.id) {
       socket.emit('setup', user.id);
@@ -26,7 +25,6 @@ const Chat = () => {
     }
   }, [user.id]);
 
-  // 2. Слушатель новых сообщений
   useEffect(() => {
     const messageHandler = (message: any) => {
       const currentChatId = activeChat?.id;
@@ -35,17 +33,14 @@ const Chat = () => {
       }
       fetchChats(); 
     };
-
     socket.on('message received', messageHandler);
     socket.on('new_message', messageHandler);
-
     return () => {
       socket.off('message received');
       socket.off('new_message');
     };
   }, [activeChat]);
 
-  // Автопрокрутка вниз
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -60,21 +55,18 @@ const Chat = () => {
     } catch (err) { console.error("Ошибка чатов:", err); }
   };
 
-  // 3. ИСПРАВЛЕННЫЙ ПОИСК (Запросы теперь летят строго на Render)
+  // ИСПРАВЛЕННЫЙ ПУТЬ ПОД ТВОЙ APP.TS
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (query.trim().length > 1) {
       try {
-        // Убедись, что на бэкенде путь именно /api/users-list/search
-        const res = await fetch(`${API_BASE_URL}/api/users-list/search?query=${query}`, {
+        const res = await fetch(`${API_BASE_URL}/api/users-list?query=${query}`, {
           headers: { 
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json'
           }
         });
-        
         if (!res.ok) throw new Error('Search failed');
-        
         const data = await res.json();
         setSearchResults(Array.isArray(data) ? data : []);
       } catch (err) { 
@@ -98,14 +90,12 @@ const Chat = () => {
         body: JSON.stringify({ chatId: activeChat.id, content: newMessage })
       });
       const data = await res.json();
-      
       socket.emit('new_message', data);
       setMessages(prev => [...prev, data]);
       setNewMessage('');
     } catch (err) { console.error("Ошибка отправки:", err); }
   };
 
-  // Функция для создания чата при клике на найденного пользователя
   const startChat = async (userId: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/chats`, {
@@ -126,11 +116,10 @@ const Chat = () => {
 
   return (
     <div className="flex h-screen bg-[#0f0f13] text-white font-sans overflow-hidden">
-      {/* Sidebar */}
       <div className="w-full md:w-96 bg-[#18181d] border-r border-white/5 flex flex-col shadow-2xl z-10">
         <div className="p-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent italic">
-            Lumina FIXED
+            Lumina Messenger
           </h1>
           <div className="flex gap-2">
             <button onClick={() => setIsProfileOpen(true)} className="p-1 hover:scale-105 transition-transform">
@@ -166,11 +155,7 @@ const Chat = () => {
             <div className="mb-6">
               <p className="px-3 text-[10px] font-black text-purple-500 uppercase tracking-[2px] mb-3">Найдено</p>
               {searchResults.map((u: any) => (
-                <div 
-                  key={u.id} 
-                  onClick={() => startChat(u.id)}
-                  className="p-3 hover:bg-white/5 rounded-2xl cursor-pointer flex items-center gap-3 transition-colors"
-                >
+                <div key={u.id} onClick={() => startChat(u.id)} className="p-3 hover:bg-white/5 rounded-2xl cursor-pointer flex items-center gap-3 transition-colors">
                   <div className="w-10 h-10 rounded-full bg-purple-600/20 flex items-center justify-center font-bold text-purple-400 border border-purple-500/20">
                     {u.username ? u.username[0].toUpperCase() : '?'}
                   </div>
@@ -182,19 +167,13 @@ const Chat = () => {
 
           <p className="px-3 text-[10px] font-black text-gray-500 uppercase tracking-[2px] mb-3">Сообщения</p>
           {chats.map((chat: any) => (
-            <div 
-              key={chat.id} 
-              onClick={() => setActiveChat(chat)}
-              className={`p-4 rounded-2xl mb-2 cursor-pointer transition-all ${activeChat?.id === chat.id ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/5 border-l-4 border-purple-500 shadow-lg' : 'hover:bg-white/5 border-l-4 border-transparent'}`}
-            >
+            <div key={chat.id} onClick={() => setActiveChat(chat)} className={`p-4 rounded-2xl mb-2 cursor-pointer transition-all ${activeChat?.id === chat.id ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/5 border-l-4 border-purple-500 shadow-lg' : 'hover:bg-white/5 border-l-4 border-transparent'}`}>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-gray-800 border border-white/5 flex items-center justify-center font-bold text-gray-400">
                   {chat.name ? chat.name[0] : 'C'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-semibold truncate">{chat.name || 'Диалог'}</span>
-                  </div>
+                  <span className="font-semibold truncate block">{chat.name || 'Диалог'}</span>
                   <p className="text-xs text-gray-500 truncate">Открыть переписку</p>
                 </div>
               </div>
@@ -203,53 +182,36 @@ const Chat = () => {
         </div>
       </div>
 
-      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-[#0f0f13]">
         {activeChat ? (
           <>
             <div className="h-20 border-b border-white/5 flex items-center justify-between px-8 bg-[#18181d]/50 backdrop-blur-md">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center font-bold text-purple-400">
-                  {activeChat.name ? activeChat.name[0] : 'C'}
-                </div>
+                <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center font-bold text-purple-400">{activeChat.name ? activeChat.name[0] : 'C'}</div>
                 <div>
                   <h3 className="font-bold text-sm">{activeChat.name || 'Чат'}</h3>
-                  <span className="text-[10px] text-green-500 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> онлайн
-                  </span>
+                  <span className="text-[10px] text-green-500 flex items-center gap-1"><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> онлайн</span>
                 </div>
               </div>
               <div className="flex gap-4 text-gray-400">
-                <Phone size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
-                <Video size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
-                <MoreVertical size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
+                <Phone size={20} className="hover:text-purple-400 cursor-pointer" />
+                <Video size={20} className="hover:text-purple-400 cursor-pointer" />
+                <MoreVertical size={20} className="hover:text-purple-400 cursor-pointer" />
               </div>
             </div>
-            
             <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
               {messages.map((m, idx) => (
                 <div key={m.id || idx} className={`flex ${m.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[70%] p-4 rounded-2xl ${m.senderId === user.id ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-[#18181d] text-gray-200 rounded-tl-none border border-white/5'}`}>
-                    {m.content}
-                  </div>
+                  <div className={`max-w-[70%] p-4 rounded-2xl ${m.senderId === user.id ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-[#18181d] text-gray-200 rounded-tl-none border border-white/5'}`}>{m.content}</div>
                 </div>
               ))}
               <div ref={scrollRef} />
             </div>
-
             <div className="p-6">
-              <div className="bg-[#18181d] rounded-2xl p-2 flex items-center gap-2 border border-white/5 focus-within:border-purple-500/50 transition-all">
+              <div className="bg-[#18181d] rounded-2xl p-2 flex items-center gap-2 border border-white/5 focus-within:border-purple-500/50">
                 <button className="p-3 text-gray-500 hover:text-purple-400"><Paperclip size={20} /></button>
-                <input 
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  placeholder="Напишите сообщение..."
-                  className="flex-1 bg-transparent border-none outline-none text-sm px-2 text-white"
-                />
-                <button onClick={sendMessage} className="bg-purple-600 p-3 rounded-xl hover:bg-purple-500 transition-colors shadow-lg">
-                  <Send size={20} />
-                </button>
+                <input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && sendMessage()} placeholder="Напишите сообщение..." className="flex-1 bg-transparent border-none outline-none text-sm px-2 text-white" />
+                <button onClick={sendMessage} className="bg-purple-600 p-3 rounded-xl hover:bg-purple-500 shadow-lg"><Send size={20} /></button>
               </div>
             </div>
           </>
@@ -266,10 +228,7 @@ const Chat = () => {
         <ProfileSettings 
           user={user} 
           onClose={() => setIsProfileOpen(false)} 
-          onUpdate={(updated: any) => { 
-            setUser(updated); 
-            localStorage.setItem('user', JSON.stringify(updated)); 
-          }}
+          onUpdate={(updated: any) => { setUser(updated); localStorage.setItem('user', JSON.stringify(updated)); }}
         />
       )}
     </div>
