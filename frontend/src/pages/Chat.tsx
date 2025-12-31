@@ -61,7 +61,7 @@ const Chat = () => {
     } catch (err) { console.error("Ошибка чатов:", err); }
   };
 
-  // 3. Поиск (Синхронизировано с твоим app.use('/api/users-list', userRoutes))
+  /// 3. Поиск (Синхронизировано с твоим app.use('/api/users-list', userRoutes))
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (query.trim().length > 1) {
