@@ -1,4 +1,4 @@
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -6,7 +6,6 @@ import Chat from './pages/Chat';
 import Profile from './pages/Profile';
 import SplashScreen from './components/SplashScreen';
 
-// Защищенный маршрут: проверяет наличие токена
 const PrivateRoute = ({ children }: { children: JSX.Element }) => {
   const token = localStorage.getItem('token');
   return token ? children : <Navigate to="/login" replace />;
@@ -38,8 +37,8 @@ function App() {
   }
 
   return (
-    /* Заменили BrowserRouter на HashRouter и убрали basename, он больше не нужен */
-    <Router>
+    /* Возвращаем BrowserRouter с basename для GitHub Pages */
+    <Router basename="/vph-messenger">
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
