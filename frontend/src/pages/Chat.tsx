@@ -3,7 +3,7 @@ import { Search, LogOut, Send, Phone, Video, MoreVertical, Paperclip } from 'luc
 import ProfileSettings from '../components/ProfileSettings'; 
 import { io } from 'socket.io-client';
 
-// Адрес бэкенда
+// Прямой адрес твоего бэкенда на Render
 const API_BASE_URL = 'https://vph-messenger.onrender.com';
 const socket = io(API_BASE_URL);
 
@@ -18,6 +18,7 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // 1. Подключение к сокетам
   useEffect(() => {
     if (user?.id) {
       socket.emit('setup', user.id);
@@ -25,6 +26,7 @@ const Chat = () => {
     }
   }, [user.id]);
 
+  // 2. Слушатель новых сообщений
   useEffect(() => {
     const messageHandler = (message: any) => {
       const currentChatId = activeChat?.id;
@@ -33,14 +35,17 @@ const Chat = () => {
       }
       fetchChats(); 
     };
+
     socket.on('message received', messageHandler);
     socket.on('new_message', messageHandler);
+
     return () => {
       socket.off('message received');
       socket.off('new_message');
     };
   }, [activeChat]);
 
+  // Автопрокрутка вниз
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -55,18 +60,21 @@ const Chat = () => {
     } catch (err) { console.error("Ошибка чатов:", err); }
   };
 
-  // ИСПРАВЛЕННЫЙ ПУТЬ ПОД ТВОЙ APP.TS
+  // 3. ИСПРАВЛЕННЫЙ ПОИСК (Убран /search, чтобы совпадать с твоим app.ts)
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (query.trim().length > 1) {
       try {
+        // Запрос идет на /api/users-list, как в твоем бэкенде
         const res = await fetch(`${API_BASE_URL}/api/users-list?query=${query}`, {
           headers: { 
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json'
           }
         });
+        
         if (!res.ok) throw new Error('Search failed');
+        
         const data = await res.json();
         setSearchResults(Array.isArray(data) ? data : []);
       } catch (err) { 
@@ -90,6 +98,7 @@ const Chat = () => {
         body: JSON.stringify({ chatId: activeChat.id, content: newMessage })
       });
       const data = await res.json();
+      
       socket.emit('new_message', data);
       setMessages(prev => [...prev, data]);
       setNewMessage('');
@@ -119,7 +128,7 @@ const Chat = () => {
       <div className="w-full md:w-96 bg-[#18181d] border-r border-white/5 flex flex-col shadow-2xl z-10">
         <div className="p-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent italic">
-            Lumina Messenger
+            Lumina FIXED
           </h1>
           <div className="flex gap-2">
             <button onClick={() => setIsProfileOpen(true)} className="p-1 hover:scale-105 transition-transform">
@@ -169,9 +178,7 @@ const Chat = () => {
           {chats.map((chat: any) => (
             <div key={chat.id} onClick={() => setActiveChat(chat)} className={`p-4 rounded-2xl mb-2 cursor-pointer transition-all ${activeChat?.id === chat.id ? 'bg-gradient-to-r from-purple-600/20 to-pink-600/5 border-l-4 border-purple-500 shadow-lg' : 'hover:bg-white/5 border-l-4 border-transparent'}`}>
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gray-800 border border-white/5 flex items-center justify-center font-bold text-gray-400">
-                  {chat.name ? chat.name[0] : 'C'}
-                </div>
+                <div className="w-12 h-12 rounded-full bg-gray-800 border border-white/5 flex items-center justify-center font-bold text-gray-400">{chat.name ? chat.name[0] : 'C'}</div>
                 <div className="flex-1 min-w-0">
                   <span className="font-semibold truncate block">{chat.name || 'Диалог'}</span>
                   <p className="text-xs text-gray-500 truncate">Открыть переписку</p>
@@ -194,11 +201,12 @@ const Chat = () => {
                 </div>
               </div>
               <div className="flex gap-4 text-gray-400">
-                <Phone size={20} className="hover:text-purple-400 cursor-pointer" />
-                <Video size={20} className="hover:text-purple-400 cursor-pointer" />
-                <MoreVertical size={20} className="hover:text-purple-400 cursor-pointer" />
+                <Phone size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
+                <Video size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
+                <MoreVertical size={20} className="hover:text-purple-400 cursor-pointer transition-colors" />
               </div>
             </div>
+            
             <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
               {messages.map((m, idx) => (
                 <div key={m.id || idx} className={`flex ${m.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
@@ -207,11 +215,12 @@ const Chat = () => {
               ))}
               <div ref={scrollRef} />
             </div>
+
             <div className="p-6">
-              <div className="bg-[#18181d] rounded-2xl p-2 flex items-center gap-2 border border-white/5 focus-within:border-purple-500/50">
+              <div className="bg-[#18181d] rounded-2xl p-2 flex items-center gap-2 border border-white/5 focus-within:border-purple-500/50 transition-all">
                 <button className="p-3 text-gray-500 hover:text-purple-400"><Paperclip size={20} /></button>
                 <input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && sendMessage()} placeholder="Напишите сообщение..." className="flex-1 bg-transparent border-none outline-none text-sm px-2 text-white" />
-                <button onClick={sendMessage} className="bg-purple-600 p-3 rounded-xl hover:bg-purple-500 shadow-lg"><Send size={20} /></button>
+                <button onClick={sendMessage} className="bg-purple-600 p-3 rounded-xl hover:bg-purple-500 transition-colors shadow-lg"><Send size={20} /></button>
               </div>
             </div>
           </>
