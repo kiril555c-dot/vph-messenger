@@ -4,23 +4,26 @@ import { AuthRequest } from '../middleware/authMiddleware';
 
 export const searchUsers = async (req: AuthRequest, res: Response) => {
   try {
-    const query = (req.query.search || req.query.query || req.query.q || req.query.username) as string;
+    // ВАЖНО: Берем именно 'query', так как фронтенд шлет ?query=...
+    const searchTerm = (req.query.query || req.query.search || req.query.q) as string;
     const userId = req.user?.userId;
 
-    console.log(`[SEARCH] Запрос: "${query}" от ID: ${userId}`);
-
-    if (!query || query.trim() === '') {
+    if (!searchTerm || searchTerm.trim() === '') {
       return res.json([]); 
     }
+
+    const cleanQuery = searchTerm.trim();
+    console.log(`[SEARCH] Ищем: "${cleanQuery}" для юзера: ${userId}`);
 
     const users = await prisma.user.findMany({
       where: {
         username: {
-          contains: query.trim(),
+          contains: cleanQuery,
           mode: 'insensitive', 
         },
+        // Не показываем самого себя в поиске
         NOT: {
-          id: userId
+          id: userId ? String(userId) : undefined
         }
       },
       select: {
@@ -29,29 +32,26 @@ export const searchUsers = async (req: AuthRequest, res: Response) => {
         avatar: true,
         bio: true,
         relationshipStatus: true,
-        isOnline: true,
-        lastSeen: true
+        isOnline: true
       },
-      take: 20
+      take: 15 // Ограничиваем, чтобы не перегружать бесплатный Render
     });
 
     return res.json(users);
-  } catch (error) {
-    console.error('SEARCH ERROR:', error);
-    return res.status(500).json({ message: 'Server error' });
+  } catch (error: any) {
+    // Теперь сервер не упадет, а просто запишет ошибку в логи
+    console.error('CRITICAL SEARCH ERROR:', error.message);
+    return res.status(500).json({ message: 'Ошибка поиска', error: error.message });
   }
 };
 
 export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: String(userId) },
       select: {
         id: true,
         username: true,
@@ -59,15 +59,11 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
         avatar: true,
         bio: true,
         relationshipStatus: true,
-        isOnline: true,
-        lastSeen: true,
-        notificationsEnabled: true,
-        createdAt: true
+        notificationsEnabled: true
       }
     });
     return res.json(user);
-  } catch (error) {
-    console.error('GET PROFILE ERROR:', error);
+  } catch (error: any) {
     return res.status(500).json({ message: 'Server error' });
   }
 };
@@ -75,51 +71,21 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    const { username, avatar, bio, relationshipStatus, notificationsEnabled } = req.body;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const updateData: any = {};
-    if (username) updateData.username = username.trim();
-    if (bio !== undefined) updateData.bio = bio;
-    if (relationshipStatus !== undefined) updateData.relationshipStatus = relationshipStatus;
-    if (notificationsEnabled !== undefined) updateData.notificationsEnabled = notificationsEnabled;
-    if (avatar) updateData.avatar = avatar;
-
+    const { username, bio, relationshipStatus } = req.body;
+    
     const user = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        avatar: true,
-        bio: true,
-        relationshipStatus: true,
-        isOnline: true,
-        lastSeen: true,
-        notificationsEnabled: true
+      where: { id: String(userId) },
+      data: {
+        username: username?.trim(),
+        bio,
+        relationshipStatus
       }
     });
-    
-    // Отправляем событие через WebSocket для обновления профиля у всех пользователей
-    const app = (req as any).app;
-    if (app) {
-      const io = app.get('io');
-      if (io) {
-        io.emit('profile_updated', { userId: user.id, user });
-      }
-    }
-    
-    console.log(`[UPDATE] Профиль ${user.username} обновлен успешно`);
+
     return res.json({ user });
   } catch (error) {
-    console.error('UPDATE ERROR:', error);
-    if ((error as any).code === 'P2025') {
-       return res.status(404).json({ message: 'User not found' });
-    }
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Update error' });
   }
 };
