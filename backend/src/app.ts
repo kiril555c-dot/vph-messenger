@@ -12,85 +12,67 @@ import prisma from './utils/prisma';
 const app = express();
 const httpServer = createServer(app);
 
-// Список разрешенных доменов (CORS)
-const allowedOrigins = [
-  "https://kiril555c-dot.github.io",
-  "http://localhost:5173",
-  "https://vph-messenger.onrender.com",
-  /\.vercel\.app$/,
-  /\.netlify\.app$/
-];
+// === ИСПРАВЛЕНИЕ CORS ДЛЯ ФРОНТЕНДА ===
+// Разрешаем origin: true, чтобы принимать запросы с GitHub Pages и локалки без ошибок
+const corsOptions = {
+  origin: true, 
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+};
 
 const io = new Server(httpServer, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT"],
-    credentials: true
-  }
+  cors: corsOptions
 });
 
 app.set('io', io);
 
-// Настройка CORS
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true
-}));
-
+// Применяем CORS ко всем запросам
+app.use(cors(corsOptions));
 app.use(express.json());
 
-// === ИСПРАВЛЕНИЕ СТАТИКИ ===
+// === СТАТИКА ===
 const uploadsPath = path.join(process.cwd(), 'uploads');
 app.use('/uploads', express.static(uploadsPath));
 
-// Подключаем роуты
-app.use('/api/users', authRoutes);      // Регистрация, логин, профиль
-app.use('/api/chats', chatRoutes);      // Чаты и сообщения
-app.use('/api/upload', uploadRoutes);   // Загрузка файлов
+// Роуты
+app.use('/api/users', authRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api/upload', uploadRoutes);
 
-// === ФИКС ПУТЕЙ: ТЕПЕРЬ ОБА ВАРИАНТА РАБОТАЮТ ===
+// Оба пути теперь рабочие
 app.use('/api/users-list', userRoutes); 
-app.use('/api/search', userRoutes);     
+app.use('/api/search', userRoutes); 
 
 app.get('/', (req, res) => {
   res.send('Lumina Messenger API is running');
 });
 
-// === ОБРАБОТКА НЕПРАВИЛЬНЫХ ПУТЕЙ ===
+// Обработка 404
 app.use((req, res) => {
   console.log(`[404] Not Found: ${req.method} ${req.url}`);
-  res.status(404).json({ message: `Route ${req.url} not found on this server` });
+  res.status(404).json({ message: `Route ${req.url} not found` });
 });
 
 const onlineUsers = new Map<string, string>();
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
   socket.on('setup', async (userId: string) => {
-    // Валидация ID
     if (!userId || userId === "undefined" || userId === "null" || typeof userId !== 'string') return;
     
     socket.join(userId);
     onlineUsers.set(socket.id, userId);
 
     try {
-      // ИСПРАВЛЕНИЕ: Сначала проверяем, есть ли такой юзер в MongoDB
       const user = await prisma.user.findUnique({ where: { id: userId } });
-      
-      // Обновляем только если юзер реально существует в базе
       if (user) {
         await prisma.user.update({
           where: { id: userId },
           data: { isOnline: true }
         });
         socket.broadcast.emit('user_online', userId);
-      } else {
-        console.log(`[Socket] Setup: User ${userId} not found in DB. Registration needed.`);
       }
     } catch (error) {
-      // Это предотвратит падение сервера с ошибкой P2025
-      console.error('Socket setup error (suppressed):', error);
+      console.error('Socket setup error:', error);
     }
   });
 
@@ -116,7 +98,7 @@ io.on('connection', (socket) => {
           socket.broadcast.emit('user_offline', userId);
         }
       } catch (error) {
-        console.error('Disconnect error (suppressed):', error);
+        console.error('Disconnect error:', error);
       }
       onlineUsers.delete(socket.id);
     }
