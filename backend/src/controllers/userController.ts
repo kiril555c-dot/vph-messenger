@@ -4,88 +4,57 @@ import { AuthRequest } from '../middleware/authMiddleware';
 
 export const searchUsers = async (req: AuthRequest, res: Response) => {
   try {
-    // ВАЖНО: Берем именно 'query', так как фронтенд шлет ?query=...
-    const searchTerm = (req.query.query || req.query.search || req.query.q) as string;
+    // Берем query или search. Приводим к строке жестко.
+    const query = String(req.query.query || req.query.search || "").trim();
     const userId = req.user?.userId;
 
-    if (!searchTerm || searchTerm.trim() === '') {
-      return res.json([]); 
-    }
+    console.log(`[DEBUG] Поиск: "${query}" от юзера: ${userId}`);
 
-    const cleanQuery = searchTerm.trim();
-    console.log(`[SEARCH] Ищем: "${cleanQuery}" для юзера: ${userId}`);
+    if (!query) return res.json([]);
 
+    // Упрощенный запрос к Prisma
     const users = await prisma.user.findMany({
       where: {
         username: {
-          contains: cleanQuery,
-          mode: 'insensitive', 
+          contains: query,
+          mode: 'insensitive'
         },
-        // Не показываем самого себя в поиске
-        NOT: {
-          id: userId ? String(userId) : undefined
-        }
+        // Исключаем себя только если ID валидный
+        NOT: userId ? { id: String(userId) } : undefined
       },
       select: {
         id: true,
         username: true,
-        avatar: true,
-        bio: true,
-        relationshipStatus: true,
-        isOnline: true
+        avatar: true
       },
-      take: 15 // Ограничиваем, чтобы не перегружать бесплатный Render
+      take: 10
     });
 
     return res.json(users);
   } catch (error: any) {
-    // Теперь сервер не упадет, а просто запишет ошибку в логи
-    console.error('CRITICAL SEARCH ERROR:', error.message);
-    return res.status(500).json({ message: 'Ошибка поиска', error: error.message });
+    console.error('SEARCH FAIL:', error.message);
+    // Важно: возвращаем пустой массив вместо падения сервера
+    return res.json([]); 
   }
 };
 
 export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
-
-    const user = await prisma.user.findUnique({
-      where: { id: String(userId) },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        avatar: true,
-        bio: true,
-        relationshipStatus: true,
-        notificationsEnabled: true
-      }
-    });
+    if (!userId) return res.status(401).json({ message: 'No ID' });
+    const user = await prisma.user.findUnique({ where: { id: String(userId) } });
     return res.json(user);
-  } catch (error: any) {
-    return res.status(500).json({ message: 'Server error' });
-  }
+  } catch (e) { return res.status(500).json({ message: 'Error' }); }
 };
 
 export const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
-    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
-
-    const { username, bio, relationshipStatus } = req.body;
-    
+    const { username } = req.body;
     const user = await prisma.user.update({
       where: { id: String(userId) },
-      data: {
-        username: username?.trim(),
-        bio,
-        relationshipStatus
-      }
+      data: { username }
     });
-
     return res.json({ user });
-  } catch (error) {
-    return res.status(500).json({ message: 'Update error' });
-  }
+  } catch (e) { return res.status(500).json({ message: 'Error' }); }
 };
