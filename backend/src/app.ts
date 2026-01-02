@@ -40,7 +40,6 @@ app.use(cors({
 app.use(express.json());
 
 // === ИСПРАВЛЕНИЕ СТАТИКИ ===
-// Используем абсолютный путь, чтобы папка uploads создавалась в корне проекта
 const uploadsPath = path.join(process.cwd(), 'uploads');
 app.use('/uploads', express.static(uploadsPath));
 
@@ -48,14 +47,16 @@ app.use('/uploads', express.static(uploadsPath));
 app.use('/api/users', authRoutes);      // Регистрация, логин, профиль
 app.use('/api/chats', chatRoutes);      // Чаты и сообщения
 app.use('/api/upload', uploadRoutes);   // Загрузка файлов
-app.use('/api/users-list', userRoutes); // Поиск пользователей (оставляем основной)
+
+// === ФИКС ПОИСКА: ТЕПЕРЬ ОБА ПУТИ РАБОТАЮТ ===
+app.use('/api/users-list', userRoutes); 
+app.use('/api/search', userRoutes);     // Добавил этот роут, чтобы фронтенд не выдавал 404
 
 app.get('/', (req, res) => {
   res.send('Lumina Messenger API is running');
 });
 
-// === ДОБАВЛЕНО: ОБРАБОТКА НЕПРАВИЛЬНЫХ ПУТЕЙ ===
-// Если фронтенд отправит запрос не туда, ты увидишь это в логах Render
+// === ОБРАБОТКА НЕПРАВИЛЬНЫХ ПУТЕЙ ===
 app.use((req, res) => {
   console.log(`[404] Not Found: ${req.method} ${req.url}`);
   res.status(404).json({ message: `Route ${req.url} not found on this server` });
@@ -67,7 +68,6 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('setup', async (userId: string) => {
-    // Валидация ID
     if (!userId || userId === "undefined" || userId === "null" || typeof userId !== 'string') return;
     
     socket.join(userId);
@@ -93,7 +93,6 @@ io.on('connection', (socket) => {
 
   socket.on('new_message', (newMessageReceived) => {
     if (!newMessageReceived?.chatId) return;
-    // Отправляем всем в комнате чата, кроме отправителя
     socket.to(newMessageReceived.chatId).emit('message received', newMessageReceived);
   });
 
