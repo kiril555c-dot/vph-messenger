@@ -2,15 +2,13 @@ import { Response } from 'express';
 import prisma from '../utils/prisma';
 import { AuthRequest } from '../middleware/authMiddleware';
 
+// 1. ПОИСК ПОЛЬЗОВАТЕЛЕЙ
 export const searchUsers = async (req: AuthRequest, res: Response) => {
   try {
-    // Вытаскиваем query правильно
     const query = String(req.query.query || "").trim();
     const userId = req.user?.userId;
 
     if (!query) return res.json([]);
-
-    console.log(`[SEARCH] Запрос: ${query}`);
 
     const users = await prisma.user.findMany({
       where: {
@@ -18,15 +16,54 @@ export const searchUsers = async (req: AuthRequest, res: Response) => {
         NOT: userId ? { id: String(userId) } : undefined
       },
       select: { id: true, username: true, avatar: true, isOnline: true },
-      take: 10 // Жесткий лимит, чтобы не вешать сервер
+      take: 10
     });
 
     return res.json(users);
   } catch (error: any) {
-    console.error('DATABASE ERROR:', error.message);
-    // Вместо падения сервера просто возвращаем пустой список
-    return res.status(200).json([]); 
+    console.error('SEARCH ERROR:', error.message);
+    return res.json([]); 
   }
 };
 
-// Остальные функции (getProfile, updateProfile) оставь как были
+// 2. ПОЛУЧЕНИЕ ПРОФИЛЯ (ЭТОГО НЕ ХВАТАЛО!)
+export const getProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: String(userId) },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        avatar: true,
+        bio: true,
+        relationshipStatus: true
+      }
+    });
+    return res.json(user);
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// 3. ОБНОВЛЕНИЕ ПРОФИЛЯ (ЭТОГО ТОЖЕ НЕ ХВАТАЛО!)
+export const updateProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId;
+    const { username, bio, relationshipStatus } = req.body;
+
+    if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+    const user = await prisma.user.update({
+      where: { id: String(userId) },
+      data: { username, bio, relationshipStatus }
+    });
+
+    return res.json({ user });
+  } catch (error) {
+    return res.status(500).json({ message: 'Update error' });
+  }
+};
