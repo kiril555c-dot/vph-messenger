@@ -48,9 +48,9 @@ app.use('/api/users', authRoutes);      // Регистрация, логин, �
 app.use('/api/chats', chatRoutes);      // Чаты и сообщения
 app.use('/api/upload', uploadRoutes);   // Загрузка файлов
 
-// === ФИКС ПОИСКА: ТЕПЕРЬ ОБА ПУТИ РАБОТАЮТ ===
+// === ФИКС ПУТЕЙ: ТЕПЕРЬ ОБА ВАРИАНТА РАБОТАЮТ ===
 app.use('/api/users-list', userRoutes); 
-app.use('/api/search', userRoutes);     // Добавил этот роут, чтобы фронтенд не выдавал 404
+app.use('/api/search', userRoutes);     
 
 app.get('/', (req, res) => {
   res.send('Lumina Messenger API is running');
@@ -68,22 +68,29 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('setup', async (userId: string) => {
+    // Валидация ID
     if (!userId || userId === "undefined" || userId === "null" || typeof userId !== 'string') return;
     
     socket.join(userId);
     onlineUsers.set(socket.id, userId);
 
     try {
+      // ИСПРАВЛЕНИЕ: Сначала проверяем, есть ли такой юзер в MongoDB
       const user = await prisma.user.findUnique({ where: { id: userId } });
+      
+      // Обновляем только если юзер реально существует в базе
       if (user) {
         await prisma.user.update({
           where: { id: userId },
           data: { isOnline: true }
         });
         socket.broadcast.emit('user_online', userId);
+      } else {
+        console.log(`[Socket] Setup: User ${userId} not found in DB. Registration needed.`);
       }
     } catch (error) {
-      console.error('Socket setup error:', error);
+      // Это предотвратит падение сервера с ошибкой P2025
+      console.error('Socket setup error (suppressed):', error);
     }
   });
 
@@ -109,7 +116,7 @@ io.on('connection', (socket) => {
           socket.broadcast.emit('user_offline', userId);
         }
       } catch (error) {
-        console.error('Disconnect error:', error);
+        console.error('Disconnect error (suppressed):', error);
       }
       onlineUsers.delete(socket.id);
     }
