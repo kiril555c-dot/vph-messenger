@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, LogOut, Send, Phone, Video, MoreVertical, Paperclip } from 'lucide-react';
 import ProfileSettings from '../components/ProfileSettings'; 
 import { io } from 'socket.io-client';
@@ -17,20 +17,24 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // --- ЛОГИКА DEBOUNCE ПОИСКА ---
+  // --- ТОТ САМЫЙ ТОРМОЗ (DEBOUNCE) ---
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (searchQuery.trim().length > 1) {
-        performSearch(searchQuery);
-      } else {
-        setSearchResults([]);
-      }
-    }, 500); // Ждем 500мс после последнего нажатия клавиши
+    // Если в поиске пусто или 1 буква — ничего не делаем
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
 
+    // Ставим таймер на 500мс
+    const delayDebounceFn = setTimeout(() => {
+      fetchSearchResults(searchQuery);
+    }, 500);
+
+    // Если нажали клавишу снова до того как прошло 500мс — сбрасываем старый таймер
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
-  const performSearch = async (query: string) => {
+  const fetchSearchResults = async (query: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/users-list?query=${query}`, {
         headers: { 
@@ -38,6 +42,7 @@ const Chat = () => {
           'Content-Type': 'application/json'
         }
       });
+      
       if (!res.ok) throw new Error('Search failed');
       const data = await res.json();
       setSearchResults(Array.isArray(data) ? data : []);
@@ -46,7 +51,7 @@ const Chat = () => {
       setSearchResults([]);
     }
   };
-  // ------------------------------
+  // -----------------------------------
 
   useEffect(() => {
     if (user?.id) {
@@ -63,8 +68,10 @@ const Chat = () => {
       }
       fetchChats(); 
     };
+
     socket.on('message received', messageHandler);
     socket.on('new_message', messageHandler);
+
     return () => {
       socket.off('message received');
       socket.off('new_message');
@@ -150,7 +157,7 @@ const Chat = () => {
             <Search className="absolute left-4 top-3.5 text-gray-500" size={18} />
             <input 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)} // Теперь просто меняем стейт, а тормоз сработает сам в useEffect
               placeholder="Поиск людей..."
               className="w-full bg-[#23232a] border-none rounded-2xl py-3.5 pl-12 pr-4 text-sm focus:ring-2 focus:ring-purple-500/50 outline-none transition-all"
             />
