@@ -47,7 +47,7 @@ A modern, 8-bit styled messenger application with liquid glass effects.
    ```
 
 4. **Access the App**
-   Open `http://localhost:5173` in your browser.
+   Open `https://vph-messenger.onrender.com` in your browser.
 
 ## Project Structure
 

@@ -40,7 +40,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ user, onClose }) =>
             <div className="w-full h-full rounded-full bg-flick-dark flex items-center justify-center overflow-hidden">
               {user.avatar ? (
                 <img
-                  src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:3000${user.avatar}`}
+                  src={user.avatar.startsWith('http') ? user.avatar : `https://vph-messenger.onrender.com${user.avatar}`}
                   alt={user.username}
                   className="w-full h-full object-cover"
                 />

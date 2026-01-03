@@ -80,7 +80,7 @@ const Chat: React.FC = () => {
       const parsedUser = JSON.parse(storedUser);
       setUser(parsedUser);
 
-      const newSocket = io('http://localhost:3000', {
+      const newSocket = io('https://vph-messenger.onrender.com', {
         transports: ['websocket'],
         reconnection: true,
       });
@@ -214,7 +214,7 @@ const Chat: React.FC = () => {
 
   const fetchChats = async (token: string) => {
     try {
-      const response = await fetch('http://localhost:3000/api/chats', {
+      const response = await fetch('https://vph-messenger.onrender.com/api/chats', {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -232,7 +232,7 @@ const Chat: React.FC = () => {
   const fetchMessages = async (chatId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000/api/chats/${chatId}/messages`, {
+      const response = await fetch(`https://vph-messenger.onrender.com/api/chats/${chatId}/messages`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -252,7 +252,7 @@ const Chat: React.FC = () => {
   const markMessagesAsRead = async (chatId: string) => {
     try {
         const token = localStorage.getItem('token');
-        await fetch(`http://localhost:3000/api/chats/${chatId}/read`, {
+        await fetch(`https://vph-messenger.onrender.com/api/chats/${chatId}/read`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` }
         });
@@ -279,7 +279,7 @@ const Chat: React.FC = () => {
     if (!activeChat) return;
     try {
       const token = localStorage.getItem('token');
-      await fetch('http://localhost:3000/api/chats/message', {
+      await fetch('https://vph-messenger.onrender.com/api/chats/message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -307,7 +307,7 @@ const Chat: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const uploadResponse = await fetch('http://localhost:3000/api/upload', {
+      const uploadResponse = await fetch('https://vph-messenger.onrender.com/api/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -316,7 +316,7 @@ const Chat: React.FC = () => {
 
       const type = file.type.startsWith('image/') ? 'IMAGE' : file.type.startsWith('video/') ? 'VIDEO' : 'DOCUMENT';
 
-      await fetch('http://localhost:3000/api/chats/message', {
+      await fetch('https://vph-messenger.onrender.com/api/chats/message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -338,7 +338,7 @@ const Chat: React.FC = () => {
     if (!activeChat) return;
     try {
       const token = localStorage.getItem('token');
-      await fetch('http://localhost:3000/api/chats/message', {
+      await fetch('https://vph-messenger.onrender.com/api/chats/message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -362,14 +362,14 @@ const Chat: React.FC = () => {
       const formData = new FormData();
       formData.append('file', audioBlob, 'voice-message.webm');
 
-      const uploadResponse = await fetch('http://localhost:3000/api/upload', {
+      const uploadResponse = await fetch('https://vph-messenger.onrender.com/api/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       const { url } = await uploadResponse.json();
 
-      await fetch('http://localhost:3000/api/chats/message', {
+      await fetch('https://vph-messenger.onrender.com/api/chats/message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -451,7 +451,7 @@ const Chat: React.FC = () => {
     if (query.length > 2) {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:3000/api/users/search?query=${query}`, {
+        const response = await fetch(`https://vph-messenger.onrender.com/api/users/search?query=${query}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await response.json();
@@ -472,7 +472,7 @@ const Chat: React.FC = () => {
   const startChat = async (partnerId: string) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/chats', {
+      const response = await fetch('https://vph-messenger.onrender.com/api/chats', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -620,7 +620,7 @@ const Chat: React.FC = () => {
               <div className="w-full h-full rounded-full bg-flick-dark flex items-center justify-center overflow-hidden">
                 {user?.avatar ? (
                   <img
-                    src={user.avatar.startsWith('http') ? user.avatar : `http://localhost:3000${user.avatar}`}
+                    src={user.avatar.startsWith('http') ? user.avatar : `https://vph-messenger.onrender.com${user.avatar}`}
                     alt={user.username}
                     className="w-full h-full object-cover"
                   />
@@ -689,7 +689,7 @@ const Chat: React.FC = () => {
                     <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
                         {avatar ? (
                         <img
-                            src={avatar.startsWith('http') ? avatar : `http://localhost:3000${avatar}`}
+                            src={avatar.startsWith('http') ? avatar : `https://vph-messenger.onrender.com${avatar}`}
                             alt={getChatName(chat) || ''}
                             className="w-full h-full object-cover"
                         />
@@ -766,7 +766,7 @@ const Chat: React.FC = () => {
                         const partner = activeChat.chatMembers.find((m) => m.user.id !== user?.id);
                         if (partner) {
                             // Fetch full user details including bio
-                            fetch(`http://localhost:3000/api/users/search?query=${partner.user.username}`, {
+                            fetch(`https://vph-messenger.onrender.com/api/users/search?query=${partner.user.username}`, {
                                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                             })
                             .then(res => res.json())
@@ -781,7 +781,7 @@ const Chat: React.FC = () => {
                     <div className="w-full h-full rounded-full bg-flick-dark flex items-center justify-center overflow-hidden">
                         {getChatAvatar(activeChat) ? (
                         <img
-                            src={getChatAvatar(activeChat)!.startsWith('http') ? getChatAvatar(activeChat)! : `http://localhost:3000${getChatAvatar(activeChat)}`}
+                            src={getChatAvatar(activeChat)!.startsWith('http') ? getChatAvatar(activeChat)! : `https://vph-messenger.onrender.com${getChatAvatar(activeChat)}`}
                             alt={getChatName(activeChat) || ''}
                             className="w-full h-full object-cover"
                         />
