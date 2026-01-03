@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, LogOut, Send, Phone, Video, MoreVertical, Paperclip } from 'lucide-react';
 import ProfileSettings from '../components/ProfileSettings'; 
 import { io } from 'socket.io-client';
 
-// Прямой адрес твоего бэкенда на Render
 const API_BASE_URL = 'https://vph-messenger.onrender.com';
 const socket = io(API_BASE_URL);
 
@@ -18,7 +17,37 @@ const Chat = () => {
   const [newMessage, setNewMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 1. Подключение к сокетам
+  // --- ЛОГИКА DEBOUNCE ПОИСКА ---
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchQuery.trim().length > 1) {
+        performSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+      }
+    }, 500); // Ждем 500мс после последнего нажатия клавиши
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const performSearch = async (query: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users-list?query=${query}`, {
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) throw new Error('Search failed');
+      const data = await res.json();
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch (err) { 
+      console.error("Ошибка поиска:", err); 
+      setSearchResults([]);
+    }
+  };
+  // ------------------------------
+
   useEffect(() => {
     if (user?.id) {
       socket.emit('setup', user.id);
@@ -26,7 +55,6 @@ const Chat = () => {
     }
   }, [user.id]);
 
-  // 2. Слушатель новых сообщений
   useEffect(() => {
     const messageHandler = (message: any) => {
       const currentChatId = activeChat?.id;
@@ -35,17 +63,14 @@ const Chat = () => {
       }
       fetchChats(); 
     };
-
     socket.on('message received', messageHandler);
     socket.on('new_message', messageHandler);
-
     return () => {
       socket.off('message received');
       socket.off('new_message');
     };
   }, [activeChat]);
 
-  // Автопрокрутка вниз
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -60,32 +85,6 @@ const Chat = () => {
     } catch (err) { console.error("Ошибка чатов:", err); }
   };
 
-  // 3. ИСПРАВЛЕННЫЙ ПОИСК (Убран /search, чтобы совпадать с твоим app.ts)
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    if (query.trim().length > 1) {
-      try {
-        // Запрос идет на /api/users-list, как в твоем бэкенде
-        const res = await fetch(`${API_BASE_URL}/api/users-list?query=${query}`, {
-          headers: { 
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!res.ok) throw new Error('Search failed');
-        
-        const data = await res.json();
-        setSearchResults(Array.isArray(data) ? data : []);
-      } catch (err) { 
-        console.error("Ошибка поиска:", err); 
-        setSearchResults([]);
-      }
-    } else {
-      setSearchResults([]);
-    }
-  };
-
   const sendMessage = async () => {
     if (!newMessage.trim() || !activeChat) return;
     try {
@@ -98,7 +97,6 @@ const Chat = () => {
         body: JSON.stringify({ chatId: activeChat.id, content: newMessage })
       });
       const data = await res.json();
-      
       socket.emit('new_message', data);
       setMessages(prev => [...prev, data]);
       setNewMessage('');
@@ -152,7 +150,7 @@ const Chat = () => {
             <Search className="absolute left-4 top-3.5 text-gray-500" size={18} />
             <input 
               value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Поиск людей..."
               className="w-full bg-[#23232a] border-none rounded-2xl py-3.5 pl-12 pr-4 text-sm focus:ring-2 focus:ring-purple-500/50 outline-none transition-all"
             />
