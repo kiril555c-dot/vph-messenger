@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-flick-orange: #FF6B00;
+  --color-flick-blue: #00A3FF;
+  --color-flick-dark: #1A1A1A;
+  --color-flick-light: #F5F5F5;
+  --color-flick-glass: rgba(255, 255, 255, 0.1);
+  
+  --font-pixel: "Press Start 2P", cursive;
+  --font-sans: "Inter", sans-serif;
+  
+  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  --shadow-pixel: 4px 4px 0px 0px rgba(0,0,0,1);
+  
+  --blur-xs: 2px;
+}
+
+@layer components {
+  .glass-panel {
+    background-color: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  }
+  
+  .pixel-btn {
+    @apply font-pixel text-xs px-4 py-2 bg-flick-orange text-white shadow-pixel hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all active:translate-x-[4px] active:translate-y-[4px];
+  }
+
+  .pixel-input {
+    @apply font-sans bg-white/10 border-2 border-flick-blue/50 p-2 focus:outline-none focus:border-flick-orange transition-colors placeholder-white/50 text-white;
+  }
+}
+
+body {
+  @apply bg-[#1A1A1A] text-white font-sans overflow-hidden;
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(255, 107, 0, 0.1) 0%, transparent 20%),
+    radial-gradient(circle at 90% 80%, rgba(0, 163, 255, 0.1) 0%, transparent 20%);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-[#1A1A1A];
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-[#00A3FF]/50 rounded-full hover:bg-[#FF6B00]/50 transition-colors;
+}

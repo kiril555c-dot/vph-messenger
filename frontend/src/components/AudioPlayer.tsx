@@ -33,7 +33,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ src }) => {
 
         const audioUrl = src.startsWith('http')
           ? src
-          : `https://vph-messenger.onrender.com${src}`;
+          : `http://localhost:3000${src}`;
         
         wavesurfer.current.load(audioUrl);
 

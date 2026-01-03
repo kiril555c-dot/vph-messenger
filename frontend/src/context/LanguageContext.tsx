@@ -61,7 +61,7 @@ const translations = {
     'end_call': 'End Call',
   },
   ru: {
-    'welcome': 'ДОБРО ПОЖАЛОВАТЬ В VPhMassanger',
+    'welcome': 'ДОБРО ПОЖАЛОВАТЬ В FLICK',
     'select_chat': 'ВЫБЕРИТЕ ЧАТ ЧТОБЫ НАЧАТЬ ОБЩЕНИЕ',
     'search': 'ПОИСК...',
     'online': 'В СЕТИ',

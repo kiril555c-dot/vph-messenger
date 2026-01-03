@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Chat from './pages/Chat';
@@ -8,24 +8,13 @@ import SplashScreen from './components/SplashScreen';
 
 const PrivateRoute = ({ children }: { children: JSX.Element }) => {
   const token = localStorage.getItem('token');
-  return token ? children : <Navigate to="/login" replace />;
+  return token ? children : <Navigate to="/login" />;
 };
 
 function App() {
   const [splashComplete, setSplashComplete] = useState(() => {
     return sessionStorage.getItem('splashShown') === 'true';
   });
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        if (token.length < 10) throw new Error("Invalid token");
-      } catch (e) {
-        localStorage.clear();
-      }
-    }
-  }, []);
 
   const handleSplashComplete = () => {
     setSplashComplete(true);
@@ -37,12 +26,10 @@ function App() {
   }
 
   return (
-    /* Возвращаем BrowserRouter с basename для GitHub Pages */
-    <Router basename="/vph-messenger">
+    <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        
         <Route
           path="/chat"
           element={
@@ -51,7 +38,6 @@ function App() {
             </PrivateRoute>
           }
         />
-        
         <Route
           path="/profile"
           element={
@@ -60,9 +46,7 @@ function App() {
             </PrivateRoute>
           }
         />
-
-        <Route path="/" element={<Navigate to="/chat" replace />} />
-        <Route path="*" element={<Navigate to="/chat" replace />} />
+        <Route path="/" element={<Navigate to="/chat" />} />
       </Routes>
     </Router>
   );

@@ -9,7 +9,7 @@ router.post('/', authenticateToken, upload.single('file'), (req, res) => {
     res.status(400).json({ message: 'No file uploaded' });
     return;
   }
-  const fileUrl = `https://vph-messenger.onrender.com/uploads/${req.file.filename}`;
+  const fileUrl = `http://localhost:3000/uploads/${req.file.filename}`;
   res.json({ url: fileUrl });
 });
 
